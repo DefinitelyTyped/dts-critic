@@ -113,6 +113,9 @@ suite("retrieveNpmHomepageOrFail", {
     },
     retrieveShelljs() {
         expect(retrieveNpmHomepageOrFail("shelljs")).toBe("http://github.com/shelljs/shelljs")
+    },
+    retrieveLargeBuffer() {
+        expect(retrieveNpmHomepageOrFail("facebook-locales")).toBe("http://github.com/wix/facebook-locales")
     }
 })
 

@@ -2,7 +2,17 @@ const yargs = require("yargs");
 const headerParser = require("definitelytyped-header-parser");
 const fs = require("fs");
 const path = require("path");
-const download = require("download-file-sync");
+const child_process = require('child_process');
+
+/**
+ * @param {string} url
+ */
+function download(url) {
+    return child_process.execFileSync('curl', ['--silent', '-L', url], {
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024
+    });
+}
 
 /**
  * @param {string} dtsPath
