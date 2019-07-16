@@ -49,7 +49,10 @@ function main() {
             else if (/must match a version that exists on npm/.test(e.message)) {
                 const m = e.message.match(/in the header, ([0-9.]+), to match one on npm, ([0-9., ]+)\./)
                 if (m) {
-                    console.log(`No matching npm version found for ${item}. Actual: ${m[1]}; Allowed: ${m[2]}`)
+                    const headerver = parseFloat(m[1])
+                    const npmvers = m[2].split(',').map(s => parseFloat(s.trim()))
+                    const fixto = npmvers.every(v => headerver > v) ? -1.0 : Math.max(...npmvers)
+                    console.log(`npm-version:${item}:${m[1]}:${m[2]}:${fixto}`)
                 }
                 else {
                     console.log('could not parse error message: ', e.message)
