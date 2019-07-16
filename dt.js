@@ -46,6 +46,15 @@ function main() {
                 s = s.replace(id, 'export =$1;')
                 fs.writeFileSync(entry + '/index.d.ts', s, 'utf-8')
             }
+            else if (/must match a version that exists on npm/.test(e.message)) {
+                const m = e.message.match(/in the header, ([0-9.]+), to match one on npm, ([0-9., ]+)\./)
+                if (m) {
+                    console.log(`No matching npm version found for ${item}. Actual: ${m[1]}; Allowed: ${m[2]}`)
+                }
+                else {
+                    console.log('could not parse error message: ', e.message)
+                }
+            }
             else {
                 console.log('*** ERROR for ' + item + ' ***')
                 console.log(e)
