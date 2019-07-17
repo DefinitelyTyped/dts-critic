@@ -95,13 +95,13 @@ function findNames(dtsPath, sourcePath, header) {
         try {
             const npm = retrieveNpmOrFail(dts)
             homepage = npm.homepage;
-            versions = new Set(Object.keys(npm.versions).map(v => {
+            versions = Object.keys(npm.versions).map(v => {
                 const ver = semver.parse(v);
                 if (!ver) return "";
                 return ver.major + "." + ver.minor;
-            }));
+            });
             nonNpmHasMatchingPackage = !!header && header.nonNpm && !isExistingSquatter(dts);
-            noMatchingVersion = !!header && !header.nonNpm && !versions.has(header.libraryMajorVersion + "." + header.libraryMinorVersion);
+            noMatchingVersion = !!header && !header.nonNpm && !versions.includes(header.libraryMajorVersion + "." + header.libraryMinorVersion);
         }
         catch (e) {
             if (!header || !header.nonNpm) {
@@ -130,12 +130,16 @@ Try adding -browser to the end of the name to get
 
         }
         if (noMatchingVersion) {
-            const verstring = versions ? Array.from(versions).join(', ') : "NO VERSIONS FOUND";
+            const verstring = versions ? versions.join(', ') : "NO VERSIONS FOUND";
+            const lateststring = versions ? versions[versions.length - 1] : "NO LATEST VERSION FOUND";
             const headerstring = header ? header.libraryMajorVersion + '.' + header.libraryMinorVersion : "NO HEADER VERSION FOUND";
             throw new Error(`The types for ${dts} must match a version that exists on npm.
+You should copy the major and minor version from the package on npm.
 
 To resolve this error, change the version in the header, ${headerstring},
-to match one on npm: ${verstring}.`);
+to match one on npm: ${verstring}.
+
+For example, if you're trying to match the latest version, use ${lateststring}.`);
 
         }
     }
