@@ -134,18 +134,8 @@ Try adding -browser to the end of the name to get
             const headerstring = header ? header.libraryMajorVersion + '.' + header.libraryMinorVersion : "NO HEADER VERSION FOUND";
             throw new Error(`The types for ${dts} must match a version that exists on npm.
 
-To resolve this error:
-
-1. Change the version in the header, ${headerstring}, to match one on npm, ${verstring}.
-
-- OR -
-2. Add a Definitely Typed header with the first line
-
-
-    // Type definitions for non-npm package ${dts}-browser
-
-Add -browser to the end of your name to make sure it doesn't conflict with existing npm packages.
-`);
+To resolve this error, change the version in the header, ${headerstring},
+to match one on npm: ${verstring}.`);
 
         }
     }
