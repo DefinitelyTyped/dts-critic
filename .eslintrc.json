@@ -56,7 +56,6 @@
         "dot-notation": "error",
         "eqeqeq": "error",
         "linebreak-style": ["error", "windows"],
-        "max-len": [1, 120, { "ignoreComments": true }],
         "new-parens": "error",
         "no-caller": "error",
         "no-duplicate-case": "error",
