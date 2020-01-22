@@ -1,4 +1,4 @@
-const { findDtsName, findNames, retrieveNpmOrFail, checkSource } = require("./index");
+import { findDtsName, findNames, retrieveNpmOrFail, checkSource } from "./index";
 
 function suite(description: string, tests: { [s: string]: () => void; }) {
     describe(description, () => {

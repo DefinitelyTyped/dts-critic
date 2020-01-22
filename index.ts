@@ -64,8 +64,8 @@ function readSource(sourcePath: string | undefined, name: string, header: header
     if (header) {
         fullName += `@${header.libraryMajorVersion}.${header.libraryMinorVersion}`;
     }
-    const content = download("https://unpkg.com/" + fullName);
-    return content;
+
+    return download("https://unpkg.com/" + fullName);
 }
 
 /**

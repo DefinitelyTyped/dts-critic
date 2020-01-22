@@ -60,7 +60,7 @@ function main() {
                 fs.writeFileSync(entry + "/index.d.ts", s, "utf-8");
             }
             else if (/must match a version that exists on npm/.test(e.message)) {
-                const m = /** @type {string} */(e.message).match(/in the header, ([0-9.]+), to match one on npm, ([0-9., ]+)\./);
+                const m = (e.message as string).match(/in the header, ([0-9.]+), to match one on npm, ([0-9., ]+)\./);
                 if (m) {
                     const headerver = parseFloat(m[1]);
                     const npmvers = m[2].split(",").map((s: string) => parseFloat(s.trim()));
