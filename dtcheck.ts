@@ -1,4 +1,3 @@
-// import critic = require("./index");
 import fs = require("fs");
 import yargs = require("yargs");
 import headerParser = require("definitelytyped-header-parser");
@@ -6,20 +5,10 @@ import ts = require("typescript");
 import path = require("path");
 import cp = require("child_process");
 
-// TODO: remove.
-function TODO(message: string): any {
-    console.log(`TODO: ${message}`);
-}
-
-const sourceDir = "sources";
+const sourcesDir = "sources";
 const dtDir = "../DefinitelyTyped/types";
-const downloadsPath = "sources/dts-critic-internal/downloads.json";
-const isNpmPath = "sources/dts-critic-internal/npm.json";
-
-function printPopularPackages(args: { count: number }): void {
-    const names = getPopularNpmPackages(args.count);
-    console.log("Popular packages:\n" + names.join("\n"));
-}
+const downloadsPath = path.join(sourcesDir, "dts-critic-internal/downloads.json");
+const isNpmPath = path.join(sourcesDir, "dts-critic-internal/npm.json");
 
 function getPackageDownloads(dtName: string): number {
     const npmName = mangleScoped(dtName);
@@ -71,19 +60,28 @@ function getAllIsNpm(): IsNpmJson {
     return isNpm;
 }
 
+// TODO: remove.
+const npmNotFound = "E404";
+
+// TODO: remove.
 function getIsNpm(name: string): boolean {
-    console.log(`Checking ${name} on NPM`);
     const npmName = mangleScoped(name);
     const infoResult = cp.spawnSync(
         "npm",
         ["info", npmName, "--json", "versions"],
         { encoding: "utf8" });
     const info = JSON.parse(infoResult.stdout);
-    if (info.error !== undefined) { // TODO: check if error is "Not found".
-        return false;
+    if (info.error !== undefined) {
+        const error = JSON.parse(info.error) as { code?: string, summary?: string };
+        if (error.code === npmNotFound) {
+            return false;
+        }
+        else {
+            throw new Error(`npm info for package ${npmName} returned an error. Reason: ${error.summary}.`);
+        }
     }
     else if (infoResult.status !== 0) {
-        throw new Error(`npm info failed for package ${npmName}`);
+        throw new Error(`Command 'npm info' failed for package ${npmName} with status ${infoResult.status}`);
     }
     return true;
 }
@@ -230,7 +228,6 @@ function formatError(error: Error): string[] {
             return [`ERROR: declaration should use \`export =\` construct. ${error.reason}`];
         }
         case ErrorKind.IncompatibleExportTypes: {
-            // TODO: filter `JSCallable` if NeedsExportEquals
             return [`ERROR: declaration and source have incompatible exports.`]
                 .concat(error.reasons.map(formatIncompatibleExportTypes));
         }
@@ -242,14 +239,8 @@ function formatIncompatibleExportTypes(reason: IncompatibleExportsReason): strin
         case MissingExport.JsCallable: {
             return "Source module can be called as a function or instantiated as object but declaration module cannot.";
         }
-        case MissingExport.DtsCallable: {
-            return "Declaration module can be called as a function or instantiated as object but source module cannot.";
-        }
         case MissingExport.JsPropertyNotInDts: {
             return `Source module exports property named ${reason.property.getName()}, which is missing from declaration's exports.`;
-        }
-        case MissingExport.DtsPropertyNotInJs: {
-            return `Declaration exports property named ${reason.property.getName()}, which is missing from source module's exports.`;
         }
     }
 }
@@ -270,11 +261,11 @@ function getSourcePackage(name: string, header: headerParser.Header): string {
         return path;
     }
     else {
-        return downloadPackageFromNpm(name, header, sourceDir);
+        return downloadPackageFromNpm(name, header, sourcesDir);
     }
 }
 
-// TODO: use version from index.js
+// TODO: remove.
 /**
  * Converts a package name from the name used in DT repository to the name used in npm.
  * @param baseName DT name of a package
@@ -286,6 +277,7 @@ function mangleScoped(baseName: string): string {
     return baseName;
 }
 
+// TODO: transfer.
 function downloadPackageFromNpm(name: string, header: headerParser.Header, outDir: string): string {
     const escapedName = mangleScoped(name);
     let version = "";
@@ -363,14 +355,11 @@ const enum ErrorKind {
 }
 
 function checkExports(sourcePath: string, dtsPath: string): ExportsDiagnostics {
-    // @ts-ignore
-    ts.Debug.enableDebugInfo(); // TODO: remove this?
-
-    const tsOpts = {
+    const tscOpts = {
         allowJs: true,
     };
 
-    const jsProgram = ts.createProgram([sourcePath], tsOpts);
+    const jsProgram = ts.createProgram([sourcePath], tscOpts);
     const jsFileNode = jsProgram.getSourceFile(sourcePath);
     if (!jsFileNode) {
         throw new Error(`TS compiler could not find source file ${sourcePath}`);
@@ -380,7 +369,7 @@ function checkExports(sourcePath: string, dtsPath: string): ExportsDiagnostics {
     const errors: Error[] = [];
     const sourceDiagnostics = inspectJs(jsFileNode, jsChecker, jsProgram);
 
-    if (dtsPath) { // Compare JS diagnostics with declaration diagnostics.
+    if (dtsPath) {
         const dirs = path.dirname(dtsPath).split(path.sep);
         const name = dirs[dirs.length - 1] || "";
         const dtsDiagnostics = inspectDts(dtsPath, name);
@@ -397,7 +386,7 @@ function checkExports(sourcePath: string, dtsPath: string): ExportsDiagnostics {
         }
 
         const compatibility =
-            exportTypesCompatibility(sourceDiagnostics.exportType, dtsDiagnostics.exportType, jsChecker);
+            exportTypesCompatibility(sourceDiagnostics.exportType, dtsDiagnostics.exportType);
         if (isSuccess(compatibility) && compatibility.result.kind === ExportsCompatibilityJudgement.Incompatible) {
             const error = { kind: ErrorKind.IncompatibleExportTypes, reasons: compatibility.result.reasons } as const;
             errors.push(error);
@@ -449,18 +438,6 @@ function classifyExports(sourceFile: ts.SourceFile, checker: ts.TypeChecker): Js
 function getJSExportType(sourceFile: ts.SourceFile, checker: ts.TypeChecker, kind: JsExportKind, program: ts.Program): InferenceResult<ts.Type> {
     switch (kind) {
         case JsExportKind.CommonJs: {
-            // TODO: do we need this? See if we can remove if it is the default already.
-            // const opts: ts.CompilerOptions = {
-            //     allowJs: true,
-            //     module: ts.ModuleKind.CommonJS,
-            //     moduleResolution: ts.ModuleResolutionKind.NodeJs,
-            // };
-            // const newProgram = ts.createProgram([sourceFile.fileName], opts, undefined, program);
-            // const newSourceFile = newProgram.getSourceFile(sourceFile.fileName);
-            // if (!newSourceFile) {
-            //     throw new Error(`TS compiler could not find source file ${sourceFile.fileName}`);
-            // }
-            // const newChecker = newProgram.getTypeChecker();
             checker.getSymbolAtLocation(sourceFile); // TODO: get symbol in a safer way.
             //@ts-ignore
             const fileSymbol: ts.Symbol | undefined = sourceFile.symbol;
@@ -721,17 +698,15 @@ interface IncompatibleExports {
 
 const enum MissingExport {
     JsPropertyNotInDts,
-    DtsPropertyNotInJs,
     JsCallable,
-    DtsCallable,
 }
 
 type IncompatibleExportsReason = {
-    kind: MissingExport.JsPropertyNotInDts | MissingExport.DtsPropertyNotInJs,
+    kind: MissingExport.JsPropertyNotInDts,
     property: ts.Symbol,
 } |
 {
-    kind: MissingExport.DtsCallable | MissingExport.JsCallable,
+    kind: MissingExport.JsCallable,
     signatures: ts.Signature[],
 };
 
@@ -744,8 +719,7 @@ function ignoreProperty(property: ts.Symbol): boolean {
 
 function exportTypesCompatibility(
     sourceType: InferenceResult<ts.Type>,
-    dtsType: InferenceResult<ts.Type>,
-    sourceChecker: ts.TypeChecker): InferenceResult<ExportsCompatibilityDiagnostics> {
+    dtsType: InferenceResult<ts.Type>): InferenceResult<ExportsCompatibilityDiagnostics> {
     if (isError(sourceType)) {
         return inferenceError("Could not get type of exports of source module.");
     }
@@ -762,7 +736,6 @@ function exportTypesCompatibility(
     let compatible = ExportsCompatibilityJudgement.Compatible;
     const reasons: IncompatibleExportsReason[] = [];
     if (callableOrNewable(sourceType.result) && !callableOrNewable(dtsType.result)) {
-        // TODO: Don't double report this if already reported export equals as missing.
         compatible = ExportsCompatibilityJudgement.Incompatible;
         const signatures = new Array<ts.Signature>().concat(sourceType.result.getCallSignatures(), sourceType.result.getConstructSignatures());
         reasons.push({ kind: MissingExport.JsCallable, signatures });
@@ -773,24 +746,9 @@ function exportTypesCompatibility(
     for (const sourceProperty of sourceProperties) {
         // TODO: check `prototype` properties.
         if (ignoreProperty(sourceProperty)) continue;
-        if (dtsProperties.find(s => s.getName() === sourceProperty.getName()) === undefined) { // TODO: do something better than name checking? (e.g. check for meaning (SymbolFlags) (class, function, object, primitive...))
+        if (dtsProperties.find(s => s.getName() === sourceProperty.getName()) === undefined) {
             compatible = ExportsCompatibilityJudgement.Incompatible;
             reasons.push({ kind: MissingExport.JsPropertyNotInDts, property: sourceProperty });
-        }
-    }
-    for (const dtsProperty of dtsProperties) {
-        // TODO: try getAliasedSymbol
-        if (ignoreProperty(dtsProperty)) continue;
-        if (sourceProperties.find(s => s.getName() === dtsProperty.getName()) === undefined) {
-            // const dtsId = ts.createIdentifier(dtsProperty.getName());
-            // // @ts-ignore
-            // const suggestion: string | undefined = sourceChecker.getSuggestionForNonexistentExport(dtsId, sourceType.result.getSymbol());
-            // if (suggestion) {
-            //     compatible = ExportsCompatibilityJudgement.Incompatible;
-            //     reasons.push(`Could not find export ${dtsProperty.getName()} in source module exports. Did you mean ${suggestion}?`);
-            // }
-            compatible = ExportsCompatibilityJudgement.Incompatible;
-            reasons.push({ kind: MissingExport.DtsPropertyNotInJs, property: dtsProperty });
         }
     }
 
@@ -859,7 +817,7 @@ function matches(srcFile: ts.SourceFile, predicate: (n: ts.Node) => boolean): bo
 }
 
 function getSourcePath(name: string): string {
-    return path.join(sourceDir, name, "package");
+    return path.join(sourcesDir, name, "package");
 }
 
 function main() {
@@ -927,13 +885,6 @@ function main() {
                 describe: "Turn debug logging on",
             }
         }, checkFile)
-        .command("get-popular-packages", "Get list of the most popular DT packages", { // TODO: remove?
-            count: {
-                alias: "c",
-                type: "number",
-                required: true,
-            }
-        }, printPopularPackages)
         .demandCommand(1)
         .help()
         .argv;
