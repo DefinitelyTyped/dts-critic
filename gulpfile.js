@@ -4,7 +4,7 @@ const jest = require("jest-cli");
 
 const tsProject = ts.createProject("tsconfig.json");
 
-async function build() {
+function build() {
     return tsProject.src().pipe(tsProject()).js.pipe(gulp.dest(tsProject.options.outDir || "dist"));
 }
 
