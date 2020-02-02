@@ -239,8 +239,7 @@ function getHeaderVersion(header: headerParser.Header | undefined): string | und
 function getMatchingVersion(target: string | undefined, npmInfo: Npm): string | undefined {
     const versions = npmInfo.versions;
     if (target) {
-        const range = `~${target}`;
-        const matchingVersion = semver.maxSatisfying(versions, range, { includePrerelease: true });
+        const matchingVersion = semver.maxSatisfying(versions, target, { includePrerelease: true });
         return matchingVersion || undefined;
     }
     if (npmInfo.tags.latest) {
@@ -605,7 +604,7 @@ function getDtsExportType(sourceFile: ts.SourceFile, checker: ts.TypeChecker, sy
         const exportKind = exportKindResult.result;
         switch (exportKind) {
             case (DtsExportKind.ExportEquals): {
-                const exportSymbol = symbol.exports!.get(exportEqualsSymbolName as ts.__String);
+                const exportSymbol = symbol.exports!.get(exportEqualsSymbolName as ts.__String); // TODO: do we need this?
                 if (!exportSymbol) {
                     return inferenceError(`TS compiler could not find \`export=\` symbol.`);
                 }
@@ -720,14 +719,19 @@ function exportTypesCompatibility(
         // TODO: check `prototype` properties.
         if (ignoreProperty(dtsProperty)) continue;
         if (sourceProperties.find(s => s.getName() === dtsProperty.getName()) === undefined) {
-            errors.push({
+            const error: MissingExports = {
                 kind: ErrorKind.DtsPropertyNotInJs,
                 message: `Declaration module exports property named '${dtsProperty.getName()}', which is missing from source's exports.`,
-                position: {
-                    start: dtsProperty.valueDeclaration.getStart(),
-                    length: dtsProperty.valueDeclaration.getWidth(),
-                },
-            });
+            };
+            const declaration = dtsProperty.declarations && dtsProperty.declarations.length > 0 ?
+                dtsProperty.declarations[0] : undefined;
+            if (declaration) {
+                error.position = {
+                    start: declaration.getStart(),
+                    length: declaration.getWidth(),
+                };
+            }
+            errors.push(error);
         }
     }
 
