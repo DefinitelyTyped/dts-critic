@@ -90,11 +90,11 @@ function defaultEnabled(error: ErrorKind): boolean {
         case ErrorKind.NoDefaultExport:
             return true;
         case ErrorKind.JsPropertyNotInDts:
-            return true;
+            return false;
         case ErrorKind.DtsPropertyNotInJs:
             return false;
         case ErrorKind.JsCallable:
-            return true;
+            return false;
         case ErrorKind.DtsCallable:
             return false;
     }
