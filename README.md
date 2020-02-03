@@ -19,7 +19,7 @@ $ gulp build
 
 Run the program using node:
 ```sh
-$ node dist/index.js path-to-d.ts [path-to-source]
+$ node dist/index.js --dts=path-to-d.ts [--js=path-to-source] [--debug]
 ```
 
 If the d.ts path is to a file named `index.d.ts`, the name of the directory
