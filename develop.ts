@@ -145,7 +145,7 @@ function doCheck(args: { package: string, dtPath: string, enableError: string[] 
     const enabledErrors = getEnabledErrors(errorNames);
     try {
         const dtsPath = path.join(getDtTypesPath(args.dtPath), dtPackage, "index.d.ts");
-        const errors = dtsCritic(dtsPath, /* sourcePath */ undefined, /* enabledErrors */ enabledErrors, args.debug);
+        const errors = dtsCritic(dtsPath, /* sourcePath */ undefined, enabledErrors, args.debug);
         return { package: args.package, output: errors };
     }
     catch (e) {

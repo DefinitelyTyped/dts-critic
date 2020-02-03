@@ -152,7 +152,7 @@ export function getNpmInfo(name: string): NpmInfo {
         }
     }
     else if (infoResult.status !== 0) {
-        throw new Error(`Command 'npm info' failed for package ${npmName} with status ${infoResult.status}`);
+        throw new Error(`Command 'npm info' failed for package ${npmName} with status ${infoResult.status}.`);
     }
     return {
         isNpm: true,
@@ -464,7 +464,7 @@ function classifyExports(sourceFile: ts.SourceFile): JsExportKind {
 function getJSExportType(sourceFile: ts.SourceFile, checker: ts.TypeChecker, kind: JsExportKind): InferenceResult<ts.Type> {
     switch (kind) {
         case JsExportKind.CommonJs: {
-            checker.getSymbolAtLocation(sourceFile); // TODO: get symbol in a safer way?.
+            checker.getSymbolAtLocation(sourceFile); // TODO: get symbol in a safer way?
             //@ts-ignore
             const fileSymbol: ts.Symbol | undefined = sourceFile.symbol;
             if (!fileSymbol) {
@@ -604,7 +604,7 @@ function getDtsExportType(sourceFile: ts.SourceFile, checker: ts.TypeChecker, sy
         const exportKind = exportKindResult.result;
         switch (exportKind) {
             case (DtsExportKind.ExportEquals): {
-                const exportSymbol = symbol.exports!.get(exportEqualsSymbolName as ts.__String); // TODO: do we need this?
+                const exportSymbol = symbol.exports!.get(exportEqualsSymbolName as ts.__String);
                 if (!exportSymbol) {
                     return inferenceError(`TS compiler could not find \`export=\` symbol.`);
                 }
@@ -646,7 +646,7 @@ function getDtsDefaultExport(sourceFile: ts.SourceFile, moduleType: InferenceRes
         }
         return undefined;
     }
-    // TODO: run and see if this check generates extra false errors.
+
     const exportDefault = moduleType.result.getProperty("default");
     if (exportDefault) {
         return {
