@@ -1,1 +1,1 @@
-module.exports = ["one", "two"];
+module.exports = function() {};

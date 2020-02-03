@@ -1,2 +1,1 @@
-declare const a: string[];
-export { a as default };
+export default function(): void;

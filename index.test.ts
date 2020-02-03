@@ -113,8 +113,8 @@ suite("checkSource", {
                 kind: ErrorKind.NoDefaultExport,
                 message: expect.stringContaining("Declaration specifies 'export default' but the source does not mention 'default' anywhere."),
                 position: {
-                    start: 29,
-                    length: 12,
+                    start: 0,
+                    length: 32,
                 },
             }
         ]));
