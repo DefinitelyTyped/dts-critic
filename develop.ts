@@ -112,35 +112,44 @@ function getNonNpm(args: { dtPath: string }): void {
     console.log(`List of non-npm packages on DT:\n${nonNpm.map(name => `DT name: ${name}\n`).join("")}`);
 }
 
-function checkAll(args: { dtPath: string, enableError: string[] | undefined, debug: boolean }): void {
+function checkAll(args: { dtPath: string, enableError: string[] | undefined, debug: boolean, json: boolean }): void {
     const dtPackages = fs.readdirSync(getDtTypesPath(args.dtPath));
     checkPackages({ packages: dtPackages, ...args });
 }
 
-function checkPopular(args: { count: number, dtPath: string, enableError: string[] | undefined, debug: boolean }): void {
+function checkPopular(args: { count: number, dtPath: string, enableError: string[] | undefined, debug: boolean, json: boolean }): void {
     checkPackages({ packages: getPopularNpmPackages(args.count, args.dtPath), ...args });
 }
 
-function checkUnpopular(args: { count: number, dtPath: string, enableError: string[] | undefined, debug: boolean }): void {
+function checkUnpopular(args: { count: number, dtPath: string, enableError: string[] | undefined, debug: boolean, json: boolean }): void {
     checkPackages({ packages: getUnpopularNpmPackages(args.count, args.dtPath), ...args });
 }
 
-function checkPackages(args: { packages: string[], dtPath: string, enableError: string[] | undefined, debug: boolean }): void {
-    args.packages.forEach(pkg => checkPackage({ package: pkg, ...args }));
+function checkPackages(args: { packages: string[], dtPath: string, enableError: string[] | undefined, debug: boolean, json: boolean }): void {
+    const results = args.packages.map(pkg => doCheck({ package: pkg, ...args }));
+    if (args.json) {
+        console.log(JSON.stringify(results));
+    }
+    else {
+        printResults(results);
+    }
 }
 
 function checkPackage(args: { package: string, dtPath: string, enableError: string[] | undefined, debug: boolean }): void {
+    printResults([doCheck(args)]);
+}
+
+function doCheck(args: { package: string, dtPath: string, enableError: string[] | undefined, debug: boolean }): Result {
     const dtPackage = args.package;
-    console.log(`\tChecking package ${dtPackage}...`);
     const errorNames = args.enableError || [];
     const enabledErrors = getEnabledErrors(errorNames);
     try {
         const dtsPath = path.join(getDtTypesPath(args.dtPath), dtPackage, "index.d.ts");
         const errors = dtsCritic(dtsPath, /* sourcePath */ undefined, /* enabledErrors */ enabledErrors, args.debug);
-        console.log(formatErrors(errors));
+        return { package: args.package, output: errors };
     }
     catch (e) {
-        console.log(e);
+        return { package: args.package, output: e.toString() };
     }
 }
 
@@ -164,6 +173,23 @@ function checkFile(args: { jsFile: string, dtsFile: string, debug: boolean }): v
     }
     catch (e) {
         console.log(e);
+    }
+}
+
+interface Result {
+    package: string,
+    output: CriticError[] | string,
+}
+
+function printResults(results: Result[]): void {
+    for (const result of results) {
+        console.log(`\tChecking package ${result.package} ...`);
+        if (typeof result.output === "string") {
+            console.log(`Exception:\n${result.output}`);
+        }
+        else {
+            console.log(formatErrors(result.output));
+        }
     }
 }
 
@@ -203,7 +229,12 @@ function main() {
                 type: "boolean",
                 default: false,
                 describe: "Turn debug logging on.",
-            }
+            },
+            json: {
+                type: "boolean",
+                default: false,
+                describe: "Format output result as json."
+            },
         }, checkAll)
         .command("check-popular", "Check source and declaration of most popular DT packages that are on NPM.", {
             count: {
@@ -226,7 +257,12 @@ function main() {
                 type: "boolean",
                 default: false,
                 describe: "Turn debug logging on.",
-            }
+            },
+            json: {
+                type: "boolean",
+                default: false,
+                describe: "Format output result as json."
+            },
         }, checkPopular)
         .command("check-unpopular", "Check source and declaration of least popular DT packages that are on NPM.", {
             count: {
@@ -249,7 +285,12 @@ function main() {
                 type: "boolean",
                 default: false,
                 describe: "Turn debug logging on.",
-            }
+            },
+            json: {
+                type: "boolean",
+                default: false,
+                describe: "Format output result as json."
+            },
         }, checkUnpopular)
         .command("check-package", "Check source and declaration of a DT package.", {
             package: {

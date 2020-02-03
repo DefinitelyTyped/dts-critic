@@ -139,7 +139,7 @@ export function getNpmInfo(name: string): NpmInfo {
     const npmName = dtToNpmName(name);
     const infoResult = cp.spawnSync(
         "npm",
-        ["info", npmName, "--json", "versions", "dist-tags"],
+        ["info", npmName, "--json", "--silent", "versions", "dist-tags"],
         { encoding: "utf8" });
     const info = JSON.parse(infoResult.stdout);
     if (info.error !== undefined) {
@@ -280,7 +280,7 @@ function downloadNpmPackage(name: string, version: string, outDir: string): stri
     const npmName = dtToNpmName(name);
     const fullName = `${npmName}@${version}`;
     const cpOpts = { encoding: "utf8", maxBuffer: 100 * 1024 * 1024 } as const;
-    const npmPack = cp.execFileSync("npm", ["pack", fullName, "--json"], cpOpts);
+    const npmPack = cp.execFileSync("npm", ["pack", fullName, "--json", "--silent"], cpOpts);
     const npmPackOut = JSON.parse(npmPack)[0];
     const tarballName: string = npmPackOut.filename;
     const outPath = path.join(outDir, `${name}`);
