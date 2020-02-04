@@ -128,7 +128,7 @@ suite("checkSource", {
         )).toEqual(expect.arrayContaining([
             {
                 kind: ErrorKind.JsCallable,
-                message: "Source module can be called as a function or instantiated, but declaration module cannot.",
+                message: "Source module can be called or instantiated, but declaration module cannot.",
             }
         ]));
     },
@@ -141,7 +141,7 @@ suite("checkSource", {
         )).toEqual(expect.arrayContaining([
             {
                 kind: ErrorKind.DtsCallable,
-                message: "Declaration module can be called as a function or instantiated, but source module cannot.",
+                message: "Declaration module can be called or instantiated, but source module cannot.",
             }
         ]));
     },
@@ -154,8 +154,8 @@ suite("checkSource", {
         )).toEqual(expect.arrayContaining([
             {
                 kind: ErrorKind.NeedsExportEquals,
-                message: "Declaration should use 'export =' construct. Reason: \
-'module.exports' can be called as a function or instantiated.",
+                message: "Declaration should use 'export =' syntax. Reason: \
+'module.exports' can be called or instantiated.",
             }
         ]));
     },

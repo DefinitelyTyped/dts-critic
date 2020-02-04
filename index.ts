@@ -410,7 +410,7 @@ function checkExports(name: string, dtsPath: string, sourcePath: string): Export
         && dtsDiagnostics.exportKind.result !== DtsExportKind.ExportEquals) {
         const error = {
             kind: ErrorKind.NeedsExportEquals,
-            message: `Declaration should use 'export =' construct. Reason: ${sourceDiagnostics.exportEquals.result.reason}`, } as const;
+            message: `Declaration should use 'export =' syntax. Reason: ${sourceDiagnostics.exportEquals.result.reason}`, } as const;
         errors.push(error);
     }
 
@@ -515,7 +515,7 @@ function moduleTypeNeedsExportEquals(type: ts.Type, checker: ts.TypeChecker): In
 
     if (callableOrNewable(type)) {
         const judgement =  ExportEqualsJudgement.Required;
-        const reason = "'module.exports' can be called as a function or instantiated.";
+        const reason = "'module.exports' can be called or instantiated.";
         return inferenceSuccess({ judgement, reason });
     }
 
@@ -691,14 +691,14 @@ function exportTypesCompatibility(
     if (callableOrNewable(sourceType.result) && !callableOrNewable(dtsType.result)) {
         errors.push({
             kind: ErrorKind.JsCallable,
-            message: "Source module can be called as a function or instantiated, but declaration module cannot.",
+            message: "Source module can be called or instantiated, but declaration module cannot.",
         });
     }
 
     if (callableOrNewable(dtsType.result) && !callableOrNewable(sourceType.result)) {
         errors.push({
             kind: ErrorKind.DtsCallable,
-            message: "Declaration module can be called as a function or instantiated, but source module cannot.",
+            message: "Declaration module can be called or instantiated, but source module cannot.",
         });
     }
 
@@ -739,9 +739,8 @@ function exportTypesCompatibility(
 }
 
 function isBadType(type: ts.Type): boolean {
-    const bad =  type.getFlags()
-        & (ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.Undefined | ts.TypeFlags.Null);
-    return !!bad;
+    return !!(type.getFlags()
+        & (ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.Undefined | ts.TypeFlags.Null));
 }
 
 function isExportEquals(node: ts.Node): boolean {
