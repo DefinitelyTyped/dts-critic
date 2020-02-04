@@ -855,7 +855,7 @@ export interface CriticError {
     position?: Position,
 }
 
-export const enum ErrorKind {
+export enum ErrorKind {
     /** Declaration is not marked as non npm in header and has no matching npm package. */
     NoMatchingNpmPackage,
     /** Declaration has no npm package matching specified version. */
@@ -919,7 +919,7 @@ interface JsExportsInfo {
     exportsDefault: boolean,
 }
 
-const enum JsExportKind {
+enum JsExportKind {
     CommonJs = "CommonJs",
     ES6 = "ES6",
     Undefined = "Undefined",
@@ -930,12 +930,12 @@ interface ExportEqualsDiagnostics {
     reason: string;
 }
 
-const enum ExportEqualsJudgement {
+enum ExportEqualsJudgement {
     Required = "Required",
     NotRequired = "Not required",
 }
 
-const enum DtsExportKind {
+enum DtsExportKind {
     ExportEquals = "export =",
     ES6Like = "ES6-like",
 }
@@ -960,7 +960,7 @@ interface Npm {
 
 type InferenceResult<T> = InferenceError | InferenceSuccess<T>;
 
-const enum InferenceResultKind {
+enum InferenceResultKind {
     Error,
     Success,
 }
