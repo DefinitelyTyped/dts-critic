@@ -148,7 +148,7 @@ export function getNpmInfo(name: string): NpmInfo {
             return { isNpm: false };
         }
         else {
-            throw new Error(`npm info for package ${npmName} returned an error. Reason: ${error.summary}.`);
+            throw new Error(`Command 'npm info' for package ${npmName} returned an error. Reason: ${error.summary}.`);
         }
     }
     else if (infoResult.status !== 0) {
@@ -315,7 +315,7 @@ function getMainPath(sourcePath: string): string {
     if (isExistingFile(path.join(sourcePath, defaultFile))) {
         return path.resolve(sourcePath, defaultFile);
     }
-    throw new Error(`Could not find entry point for package on path '${sourcePath}' with main '${packageInfo.main}'`);
+    throw new Error(`Could not find entry point for package on path '${sourcePath}' with main '${packageInfo.main}'.`);
 }
 
 function isExistingFile(path: string): boolean {
@@ -394,7 +394,7 @@ function checkExports(name: string, dtsPath: string, sourcePath: string): Export
     const jsProgram = ts.createProgram([sourcePath], tscOpts);
     const jsFileNode = jsProgram.getSourceFile(sourcePath);
     if (!jsFileNode) {
-        throw new Error(`TS compiler could not find source file ${sourcePath}`);
+        throw new Error(`TS compiler could not find source file ${sourcePath}.`);
     }
     const jsChecker = jsProgram.getTypeChecker();
 
@@ -468,7 +468,7 @@ function getJSExportType(sourceFile: ts.SourceFile, checker: ts.TypeChecker, kin
             //@ts-ignore
             const fileSymbol: ts.Symbol | undefined = sourceFile.symbol;
             if (!fileSymbol) {
-                return inferenceError(`TS compiler could not find symbol for file node '${sourceFile.fileName}'`);
+                return inferenceError(`TS compiler could not find symbol for file node '${sourceFile.fileName}'.`);
             }
             const exportType = checker.getTypeOfSymbolAtLocation(fileSymbol, sourceFile);
             return inferenceSuccess(exportType);
@@ -476,13 +476,13 @@ function getJSExportType(sourceFile: ts.SourceFile, checker: ts.TypeChecker, kin
         case JsExportKind.ES6: {
             const fileSymbol = checker.getSymbolAtLocation(sourceFile);
             if (!fileSymbol) {
-                return inferenceError(`TS compiler could not find symbol for file node '${sourceFile.fileName}'`);
+                return inferenceError(`TS compiler could not find symbol for file node '${sourceFile.fileName}'.`);
             }
             const exportType = checker.getTypeOfSymbolAtLocation(fileSymbol, sourceFile);
             return inferenceSuccess(exportType);
         }
         case JsExportKind.Undefined: {
-            return inferenceError(`Could not infer type of exports because exports kind is undefined`);
+            return inferenceError(`Could not infer type of exports because exports kind is undefined.`);
         }
     }
 }
