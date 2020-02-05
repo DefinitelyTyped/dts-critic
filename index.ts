@@ -188,7 +188,7 @@ function checkNpm(name: string, npmInfo: NpmInfo, header: headerParser.Header | 
     if (!npmInfo.isNpm) {
         return {
             kind: ErrorKind.NoMatchingNpmPackage,
-            message: `d.ts file must have a matching npm package.
+            message: `Declaration file must have a matching npm package.
 To resolve this error, either:
 1. Change the name to match an npm package.
 2. Add a Definitely Typed header with the first line
@@ -384,6 +384,8 @@ function formatType(type: ts.Type): string {
     return lines.join("\n");
 }
 
+const exportEqualsLink = "https://www.typescriptlang.org/docs/handbook/modules.html#export--and-import--require";
+
 /**
  * Checks exports of a declaration file against its JavaScript source.
  */
@@ -411,12 +413,21 @@ function checkExports(name: string, dtsPath: string, sourcePath: string): Export
         && dtsDiagnostics.exportKind.result !== DtsExportKind.ExportEquals) {
         const error = {
             kind: ErrorKind.NeedsExportEquals,
-            message: `Declaration should use 'export =' syntax. Reason: ${sourceDiagnostics.exportEquals.result.reason}`, } as const;
+            message: `The declaration doesn't match the JavaScript module 'missingExportEquals'. Reason:
+The declaration should use 'export =' syntax because the JavaScript source uses 'module.exports =' syntax and ${sourceDiagnostics.exportEquals.result.reason}.
+
+To learn more about 'export =' syntax, see ${exportEqualsLink}.`,
+        } as const;
         errors.push(error);
     }
 
     const compatibility =
-        exportTypesCompatibility(sourceDiagnostics.exportType, dtsDiagnostics.exportType);
+        exportTypesCompatibility(
+            name,
+            sourceDiagnostics.exportType,
+            dtsDiagnostics.exportType,
+            dtsDiagnostics.exportKind);
+
     if (isSuccess(compatibility)) {
         errors.push(...compatibility.result);
     }
@@ -425,9 +436,11 @@ function checkExports(name: string, dtsPath: string, sourcePath: string): Export
         errors.push({
             kind: ErrorKind.NoDefaultExport,
             position: dtsDiagnostics.defaultExport,
-            message: `Declaration specifies 'export default' but the source does not mention 'default' anywhere.
+            message: `The declaration doesn't match the JavaScript module 'missingDefault'. Reason:
+The declaration specifies 'export default' but the JavaScript source does not mention 'default' anywhere.
 
-        The most common way to resolve this error is to use 'export =' instead of 'export default'.`,
+The most common way to resolve this error is to use 'export =' syntax instead of 'export default'.
+To learn more about 'export =' syntax, see ${exportEqualsLink}.`,
         });
     }
 
@@ -512,27 +525,27 @@ function moduleTypeNeedsExportEquals(type: ts.Type, checker: ts.TypeChecker): In
     // @ts-ignore
     if (isObject && !callableOrNewable(type) && !checker.isArrayLikeType(type)) {
         const judgement = ExportEqualsJudgement.NotRequired;
-        const reason = "'module.exports' is an object which is neither a function, class, or array.";
+        const reason = "'module.exports' is an object which is neither a function, class, or array";
         return inferenceSuccess({ judgement, reason });
     }
 
     if (callableOrNewable(type)) {
         const judgement =  ExportEqualsJudgement.Required;
-        const reason = "'module.exports' can be called or instantiated.";
+        const reason = "'module.exports' can be called or constructed";
         return inferenceSuccess({ judgement, reason });
     }
 
     const primitive = ts.TypeFlags.Boolean | ts.TypeFlags.String | ts.TypeFlags.Number;
     if (type.getFlags() & primitive) {
         const judgement =  ExportEqualsJudgement.Required;
-        const reason = `'module.exports' has primitive type ${checker.typeToString(type)}.`;
+        const reason = `'module.exports' has primitive type ${checker.typeToString(type)}`;
         return inferenceSuccess({ judgement, reason });
     }
 
     // @ts-ignore
     if (checker.isArrayLikeType(type)) {
         const judgement =  ExportEqualsJudgement.Required;
-        const reason = `'module.exports' has array-like type ${checker.typeToString(type)}.`;
+        const reason = `'module.exports' has array-like type ${checker.typeToString(type)}`;
         return inferenceSuccess({ judgement, reason });
     }
 
@@ -675,8 +688,10 @@ function ignoreProperty(property: ts.Symbol): boolean {
  * Those checks are useful for finding examples where JavaScript type inference could be improved.
  */
 function exportTypesCompatibility(
+    name: string,
     sourceType: InferenceResult<ts.Type>,
-    dtsType: InferenceResult<ts.Type>): InferenceResult<MissingExports[]> {
+    dtsType: InferenceResult<ts.Type>,
+    dtsExportKind: InferenceResult<DtsExportKind>): InferenceResult<MissingExports[]> {
     if (isError(sourceType)) {
         return inferenceError("Could not get type of exports of source module.");
     }
@@ -692,16 +707,30 @@ function exportTypesCompatibility(
 
     const errors: MissingExports[] = [];
     if (callableOrNewable(sourceType.result) && !callableOrNewable(dtsType.result)) {
-        errors.push({
-            kind: ErrorKind.JsCallable,
-            message: "Source module can be called or instantiated, but declaration module cannot.",
-        });
+        if (isSuccess(dtsExportKind) && dtsExportKind.result === DtsExportKind.ExportEquals) {
+            errors.push({
+                kind: ErrorKind.JsCallable,
+                message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
+The JavaScript module can be called or constructed, but the declaration module cannot.`,
+            });
+        }
+        else {
+            errors.push({
+                kind: ErrorKind.JsCallable,
+                message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
+The JavaScript module can be called or constructed, but the declaration module cannot.
+
+The most common way to resolve this error is to use 'export =' syntax.
+To learn more about 'export =' syntax, see ${exportEqualsLink}.`,
+            });
+        }
     }
 
     if (callableOrNewable(dtsType.result) && !callableOrNewable(sourceType.result)) {
         errors.push({
             kind: ErrorKind.DtsCallable,
-            message: "Declaration module can be called or instantiated, but source module cannot.",
+            message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
+The declaration module can be called or constructed, but the JavaScript module cannot.`,
         });
     }
 
@@ -713,7 +742,8 @@ function exportTypesCompatibility(
         if (dtsProperties.find(s => s.getName() === sourceProperty.getName()) === undefined) {
             errors.push({
                 kind: ErrorKind.JsPropertyNotInDts,
-                message: `Source module exports property named '${sourceProperty.getName()}', which is missing from declaration's exports.`,
+                message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
+The JavaScript module exports a property named '${sourceProperty.getName()}', which is missing from the declaration module.`
             });
         }
     }
@@ -724,7 +754,8 @@ function exportTypesCompatibility(
         if (sourceProperties.find(s => s.getName() === dtsProperty.getName()) === undefined) {
             const error: MissingExports = {
                 kind: ErrorKind.DtsPropertyNotInJs,
-                message: `Declaration module exports property named '${dtsProperty.getName()}', which is missing from source's exports.`,
+                message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
+The declaration module exports a property named '${dtsProperty.getName()}', which is missing from the JavaScript module.`
             };
             const declaration = dtsProperty.declarations && dtsProperty.declarations.length > 0 ?
                 dtsProperty.declarations[0] : undefined;

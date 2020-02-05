@@ -81,7 +81,8 @@ suite("checkSource", {
         )).toEqual(expect.arrayContaining([
             {
                 kind: ErrorKind.JsPropertyNotInDts,
-                message: "Source module exports property named 'foo', which is missing from declaration's exports.",
+                message: `The declaration doesn't match the JavaScript module 'missingJsProperty'. Reason:
+The JavaScript module exports a property named 'foo', which is missing from the declaration module.`
             }
         ]));
     },
@@ -94,7 +95,8 @@ suite("checkSource", {
         )).toEqual(expect.arrayContaining([
             {
                 kind: ErrorKind.DtsPropertyNotInJs,
-                message: "Declaration module exports property named 'foo', which is missing from source's exports.",
+                message: `The declaration doesn't match the JavaScript module 'missingDtsProperty'. Reason:
+The declaration module exports a property named 'foo', which is missing from the JavaScript module.`,
                 position: {
                     start: 67,
                     length: 11,
@@ -111,7 +113,11 @@ suite("checkSource", {
         )).toEqual(expect.arrayContaining([
             {
                 kind: ErrorKind.NoDefaultExport,
-                message: expect.stringContaining("Declaration specifies 'export default' but the source does not mention 'default' anywhere."),
+                message: `The declaration doesn't match the JavaScript module 'missingDefault'. Reason:
+The declaration specifies 'export default' but the JavaScript source does not mention 'default' anywhere.
+
+The most common way to resolve this error is to use 'export =' syntax instead of 'export default'.
+To learn more about 'export =' syntax, see https://www.typescriptlang.org/docs/handbook/modules.html#export--and-import--require.`,
                 position: {
                     start: 0,
                     length: 32,
@@ -119,16 +125,34 @@ suite("checkSource", {
             }
         ]));
     },
-    missingJsSignature() {
+    missingJsSignatureExportEquals() {
         expect(checkSource(
-            "missingJsSignature",
-            "testsource/missingJsSignature.d.ts",
-            "testsource/missingJsSignature.js",
+            "missingJsSignatureExportEquals",
+            "testsource/missingJsSignatureExportEquals.d.ts",
+            "testsource/missingJsSignatureExportEquals.js",
             false,
         )).toEqual(expect.arrayContaining([
             {
                 kind: ErrorKind.JsCallable,
-                message: "Source module can be called or instantiated, but declaration module cannot.",
+                message: `The declaration doesn't match the JavaScript module 'missingJsSignatureExportEquals'. Reason:
+The JavaScript module can be called or constructed, but the declaration module cannot.`,
+            }
+        ]));
+    },
+    missingJsSignatureNoExportEquals() {
+        expect(checkSource(
+            "missingJsSignatureNoExportEquals",
+            "testsource/missingJsSignatureNoExportEquals.d.ts",
+            "testsource/missingJsSignatureNoExportEquals.js",
+            false,
+        )).toEqual(expect.arrayContaining([
+            {
+                kind: ErrorKind.JsCallable,
+                message: `The declaration doesn't match the JavaScript module 'missingJsSignatureNoExportEquals'. Reason:
+The JavaScript module can be called or constructed, but the declaration module cannot.
+
+The most common way to resolve this error is to use 'export =' syntax.
+To learn more about 'export =' syntax, see https://www.typescriptlang.org/docs/handbook/modules.html#export--and-import--require.`,
             }
         ]));
     },
@@ -141,7 +165,8 @@ suite("checkSource", {
         )).toEqual(expect.arrayContaining([
             {
                 kind: ErrorKind.DtsCallable,
-                message: "Declaration module can be called or instantiated, but source module cannot.",
+                message: `The declaration doesn't match the JavaScript module 'missingDtsSignature'. Reason:
+The declaration module can be called or constructed, but the JavaScript module cannot.`,
             }
         ]));
     },
@@ -154,8 +179,10 @@ suite("checkSource", {
         )).toEqual(expect.arrayContaining([
             {
                 kind: ErrorKind.NeedsExportEquals,
-                message: "Declaration should use 'export =' syntax. Reason: \
-'module.exports' can be called or instantiated.",
+                message: `The declaration doesn't match the JavaScript module 'missingExportEquals'. Reason:
+The declaration should use 'export =' syntax because the JavaScript source uses 'module.exports =' syntax and 'module.exports' can be called or constructed.
+
+To learn more about 'export =' syntax, see https://www.typescriptlang.org/docs/handbook/modules.html#export--and-import--require.`,
             }
         ]));
     },
@@ -168,7 +195,7 @@ suite("dtsCritic", {
         expect(dtsCritic("testsource/parseltongue.d.ts")).toEqual([
             {
                 kind: ErrorKind.NoMatchingNpmPackage,
-                message: `d.ts file must have a matching npm package.
+                message: `Declaration file must have a matching npm package.
 To resolve this error, either:
 1. Change the name to match an npm package.
 2. Add a Definitely Typed header with the first line
