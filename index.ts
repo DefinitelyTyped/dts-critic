@@ -325,14 +325,15 @@ function isExistingFile(path: string): boolean {
 export function checkSource(name: string, dtsPath: string, srcPath: string, debug: boolean): ExportsError[] {
     const diagnostics = checkExports(name, dtsPath, srcPath);
     if (debug) {
-        console.log(formatDebug(diagnostics));
+        console.log(formatDebug(name, diagnostics));
     }
 
     return diagnostics.errors;
 }
 
-function formatDebug(diagnostics: ExportsDiagnostics): string {
+function formatDebug(name: string, diagnostics: ExportsDiagnostics): string {
     const lines: string[] = [];
+    lines.push(`\tDiagnostics for package ${name}.`);
     lines.push("\tInferred source module structure:");
     lines.push(diagnostics.jsExportKind);
     lines.push("\tInferred source export type:");
@@ -452,10 +453,12 @@ function inspectJs(sourceFile: ts.SourceFile, checker: ts.TypeChecker, packageNa
 }
 
 function classifyExports(sourceFile: ts.SourceFile): JsExportKind {
-    if (matches(sourceFile, (node: ts.Node) => isCommonJSExport(node, sourceFile))) {
+    // @ts-ignore
+    if (sourceFile.commonJsModuleIndicator) {
         return JsExportKind.CommonJs;
     }
-    if (matches(sourceFile, isES6Export)) {
+    // @ts-ignore
+    else if (sourceFile.externalModuleIndicator) {
         return JsExportKind.ES6;
     }
     return JsExportKind.Undefined;
