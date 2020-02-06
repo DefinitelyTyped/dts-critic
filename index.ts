@@ -13,12 +13,36 @@ const npmNotFound = "E404";
 const sourceDir = "sources";
 const exportEqualsSymbolName = "export=";
 
-export function dtsCritic(dtsPath: string, sourcePath?: string, enabledErrors: Map<ErrorKind, boolean> = new Map(), debug = false): CriticError[] {
-    const errors = critique(dtsPath, sourcePath, debug);
-    return errors.filter(err => enabledErrors.get(err.kind) ?? defaultEnabled(err.kind));
+export enum Mode {
+    /** Checks based only on the package name and on the declaration's DefinitelyTyped header. */
+    NameOnly = "name-only",
+    /** Checks based on the source JavaScript code, in addition to the checks performed in name-only mode. */
+    Code = "code",
 }
 
-function critique(dtsPath: string, sourcePath: string | undefined, debug: boolean): CriticError[] {
+export function parseMode(mode: string): Mode | undefined {
+    switch (mode) {
+        case Mode.NameOnly:
+            return Mode.NameOnly;
+        case Mode.Code:
+            return Mode.Code;
+    }
+}
+
+export type CheckOptions = NameOnlyOptions | CodeOptions;
+export interface NameOnlyOptions {
+    mode: Mode.NameOnly,
+}
+export interface CodeOptions {
+    mode: Mode.Code,
+    errors: Map<ExportErrorKind, boolean>,
+}
+
+export type ExportErrorKind = ExportError["kind"];
+
+const defaultOpts: CheckOptions = { mode: Mode.NameOnly };
+
+export function dtsCritic(dtsPath: string, sourcePath?: string, options: CheckOptions = defaultOpts, debug = false): CriticError[] {
     if (!commandExistsSync("tar")) {
         throw new Error("You need to have tar installed to run dts-critic, you can get it from https://www.gnu.org/software/tar");
     }
@@ -27,13 +51,7 @@ function critique(dtsPath: string, sourcePath: string | undefined, debug: boolea
     }
 
     const dts = fs.readFileSync(dtsPath, "utf-8");
-    let header;
-    try {
-        header = headerParser.parseHeaderOrFail(dts);
-    }
-    catch (e) {
-        header = undefined;
-    }
+    const header = parseDtHeader(dts);
 
     const name = findDtsName(dtsPath);
     const npmInfo = getNpmInfo(name);
@@ -46,13 +64,13 @@ function critique(dtsPath: string, sourcePath: string | undefined, debug: boolea
         }
 
         if (sourcePath) {
-            errors.push(...checkSource(name, dtsPath, sourcePath, debug));
+            if (options.mode === Mode.Code) {
+                errors.push(...checkSource(name, dtsPath, sourcePath, options.errors, debug));
+            }
         }
-        else {
-            if (!module.parent) {
+        else if (!module.parent) {
                 console.log(`Warning: declaration provided is for a non-npm package.
 If you want to check the declaration against the JavaScript source code, you must provide a path to the source file.`);
-            }
         }
 
         return errors;
@@ -63,7 +81,20 @@ If you want to check the declaration against the JavaScript source code, you mus
             return [npmVersion];
         }
 
-        return checkSource(name, dtsPath, getNpmSourcePath(sourcePath, name, npmVersion), debug);
+        if (options.mode === Mode.Code) {
+            return checkSource(name, dtsPath, getNpmSourcePath(sourcePath, name, npmVersion), options.errors, debug);
+        }
+
+        return [];
+    }
+}
+
+function parseDtHeader(dts: string): headerParser.Header | undefined {
+    try {
+        return headerParser.parseHeaderOrFail(dts);
+    }
+    catch (e) {
+        return undefined;
     }
 }
 
@@ -71,11 +102,8 @@ function isNonNpm(header: headerParser.Header | undefined): boolean {
     return !!header && header.nonNpm;
 }
 
-function defaultEnabled(error: ErrorKind): boolean {
+function defaultEnabledErrors(error: ExportErrorKind): boolean {
     switch (error) {
-        case ErrorKind.NoMatchingNpmPackage:
-        case ErrorKind.NonNpmHasMatchingPackage:
-        case ErrorKind.NoMatchingNpmVersion:
         case ErrorKind.NeedsExportEquals:
         case ErrorKind.NoDefaultExport:
             return true;
@@ -288,13 +316,18 @@ function initDir(path: string): void {
     }
 }
 
-export function checkSource(name: string, dtsPath: string, srcPath: string, debug: boolean): ExportsError[] {
+export function checkSource(
+    name: string,
+    dtsPath: string,
+    srcPath: string,
+    enabledErrors: Map<ExportErrorKind, boolean>,
+    debug: boolean): ExportError[] {
     const diagnostics = checkExports(name, dtsPath, srcPath);
     if (debug) {
         console.log(formatDebug(name, diagnostics));
     }
 
-    return diagnostics.errors;
+    return diagnostics.errors.filter(err => enabledErrors.get(err.kind) ?? defaultEnabledErrors(err.kind));
 }
 
 function formatDebug(name: string, diagnostics: ExportsDiagnostics): string {
@@ -372,7 +405,7 @@ function checkExports(name: string, dtsPath: string, sourcePath: string): Export
     }
     const jsChecker = jsProgram.getTypeChecker();
 
-    const errors: ExportsError[] = [];
+    const errors: ExportError[] = [];
     const sourceDiagnostics = inspectJs(jsFileNode, jsChecker, name);
 
     const dtsDiagnostics = inspectDts(dtsPath, name);
@@ -665,7 +698,7 @@ function exportTypesCompatibility(
     name: string,
     sourceType: InferenceResult<ts.Type>,
     dtsType: InferenceResult<ts.Type>,
-    dtsExportKind: InferenceResult<DtsExportKind>): InferenceResult<MissingExports[]> {
+    dtsExportKind: InferenceResult<DtsExportKind>): InferenceResult<MissingExport[]> {
     if (isError(sourceType)) {
         return inferenceError("Could not get type of exports of source module.");
     }
@@ -679,7 +712,7 @@ function exportTypesCompatibility(
         return inferenceError("Could not infer meaningful type of exports of declaration module.");
     }
 
-    const errors: MissingExports[] = [];
+    const errors: MissingExport[] = [];
     if (callableOrNewable(sourceType.result) && !callableOrNewable(dtsType.result)) {
         if (isSuccess(dtsExportKind) && dtsExportKind.result === DtsExportKind.ExportEquals) {
             errors.push({
@@ -726,7 +759,7 @@ The JavaScript module exports a property named '${sourceProperty.getName()}', wh
         // TODO: check `prototype` properties.
         if (ignoreProperty(dtsProperty)) continue;
         if (!sourceProperties.find(s => s.getName() === dtsProperty.getName())) {
-            const error: MissingExports = {
+            const error: MissingExport = {
                 kind: ErrorKind.DtsPropertyNotInJs,
                 message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
 The declaration module exports a property named '${dtsProperty.getName()}', which is missing from the JavaScript module.`
@@ -810,15 +843,9 @@ export function dtToNpmName(baseName: string) {
 /**
  * @param error case-insensitive name of the error
  */
-export function toErrorKind(error: string): ErrorKind | undefined {
+export function toExportErrorKind(error: string): ExportErrorKind | undefined {
     error = error.toLowerCase();
     switch (error) {
-        case "nomatchingnpmpackage":
-            return ErrorKind.NoMatchingNpmPackage;
-        case "nomatchingnpmversion":
-            return ErrorKind.NoMatchingNpmVersion;
-        case "nonnpmhasmatchingpackage":
-            return ErrorKind.NonNpmHasMatchingPackage;
         case "needsexportequals":
             return ErrorKind.NeedsExportEquals;
         case "nodefaultexport":
@@ -878,7 +905,7 @@ interface DefaultExportError extends CriticError {
     position: Position,
 }
 
-interface MissingExports extends CriticError {
+interface MissingExport extends CriticError {
     kind: ErrorKind.JsPropertyNotInDts| ErrorKind.DtsPropertyNotInJs | ErrorKind.JsCallable | ErrorKind.DtsCallable,
 }
 
@@ -892,10 +919,10 @@ interface ExportsDiagnostics {
     jsExportType: InferenceResult<ts.Type>,
     dtsExportKind: InferenceResult<DtsExportKind>,
     dtsExportType: InferenceResult<ts.Type>,
-    errors: ExportsError[],
+    errors: ExportError[],
 }
 
-type ExportsError = ExportEqualsError | DefaultExportError | MissingExports;
+type ExportError = ExportEqualsError | DefaultExportError | MissingExport;
 
 interface JsExportsInfo {
     exportKind: InferenceResult<JsExportKind>,

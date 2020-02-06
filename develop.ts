@@ -3,7 +3,18 @@ import yargs = require("yargs");
 import headerParser = require("definitelytyped-header-parser");
 import path = require("path");
 import cp = require("child_process");
-import { dtsCritic, dtToNpmName, getNpmInfo, toErrorKind, CriticError, ErrorKind, checkSource, findDtsName } from "./index";
+import {
+    dtsCritic,
+    dtToNpmName,
+    getNpmInfo,
+    toExportErrorKind,
+    CriticError,
+    ExportErrorKind,
+    Mode,
+    checkSource,
+    findDtsName,
+    CheckOptions,
+    parseMode} from "./index";
 
 const sourcesDir = "sources";
 const downloadsPath = path.join(sourcesDir, "dts-critic-internal/downloads.json");
@@ -112,40 +123,42 @@ function getNonNpm(args: { dtPath: string }): void {
     console.log(`List of non-npm packages on DT:\n${nonNpm.map(name => `DT name: ${name}\n`).join("")}`);
 }
 
-function checkAll(args: { dtPath: string, enableError: string[] | undefined, debug: boolean, json: boolean }): void {
+interface CommonArgs {
+    dtPath: string,
+    mode: string,
+    enableError: string[] | undefined,
+    debug: boolean,
+    json: boolean,
+}
+
+function checkAll(args: CommonArgs): void {
     const dtPackages = fs.readdirSync(getDtTypesPath(args.dtPath));
     checkPackages({ packages: dtPackages, ...args });
 }
 
-function checkPopular(args: { count: number, dtPath: string, enableError: string[] | undefined, debug: boolean, json: boolean }): void {
+function checkPopular(args: { count: number } & CommonArgs): void {
     checkPackages({ packages: getPopularNpmPackages(args.count, args.dtPath), ...args });
 }
 
-function checkUnpopular(args: { count: number, dtPath: string, enableError: string[] | undefined, debug: boolean, json: boolean }): void {
+function checkUnpopular(args: { count: number } & CommonArgs): void {
     checkPackages({ packages: getUnpopularNpmPackages(args.count, args.dtPath), ...args });
 }
 
-function checkPackages(args: { packages: string[], dtPath: string, enableError: string[] | undefined, debug: boolean, json: boolean }): void {
+function checkPackages(args: { packages: string[] } & CommonArgs): void {
     const results = args.packages.map(pkg => doCheck({ package: pkg, ...args }));
-    if (args.json) {
-        console.log(JSON.stringify(results));
-    }
-    else {
-        printResults(results);
-    }
+    printResults(results, args.json);
 }
 
-function checkPackage(args: { package: string, dtPath: string, enableError: string[] | undefined, debug: boolean }): void {
-    printResults([doCheck(args)]);
+function checkPackage(args: { package: string } & CommonArgs): void {
+    printResults([doCheck(args)], args.json);
 }
 
-function doCheck(args: { package: string, dtPath: string, enableError: string[] | undefined, debug: boolean }): Result {
+function doCheck(args: { package: string, dtPath: string, mode: string, enableError: string[] | undefined, debug: boolean }): Result {
     const dtPackage = args.package;
-    const errorNames = args.enableError || [];
-    const enabledErrors = getEnabledErrors(errorNames);
+    const opts = getOptions(args.mode, args.enableError || []);
     try {
         const dtsPath = path.join(getDtTypesPath(args.dtPath), dtPackage, "index.d.ts");
-        const errors = dtsCritic(dtsPath, /* sourcePath */ undefined, enabledErrors, args.debug);
+        const errors = dtsCritic(dtsPath, /* sourcePath */ undefined, opts, args.debug);
         return { package: args.package, output: errors };
     }
     catch (e) {
@@ -153,10 +166,24 @@ function doCheck(args: { package: string, dtPath: string, enableError: string[] 
     }
 }
 
-function getEnabledErrors(errorNames: string[]): Map<ErrorKind, boolean> {
-    const errors: ErrorKind[] = [];
+function getOptions(modeArg: string, enabledErrors: string[]): CheckOptions {
+    const mode = parseMode(modeArg);
+    if (!mode) {
+        throw new Error(`Could not find mode named '${modeArg}'.`);
+    }
+    switch (mode) {
+        case Mode.NameOnly:
+            return { mode };
+        case Mode.Code:
+            const errors = getEnabledErrors(enabledErrors);
+            return { mode, errors };
+    }
+}
+
+function getEnabledErrors(errorNames: string[]): Map<ExportErrorKind, boolean> {
+    const errors: ExportErrorKind[] = [];
     for (const name of errorNames) {
-        const error = toErrorKind(name);
+        const error = toExportErrorKind(name);
         if (error === undefined) {
             throw new Error(`Could not find error named '${name}'.`);
         }
@@ -168,7 +195,7 @@ function getEnabledErrors(errorNames: string[]): Map<ErrorKind, boolean> {
 function checkFile(args: { jsFile: string, dtsFile: string, debug: boolean }): void {
     console.log(`\tChecking JS file ${args.jsFile} and declaration file ${args.dtsFile}`);
     try {
-        const errors = checkSource(findDtsName(args.dtsFile), args.dtsFile, args.jsFile, args.debug);
+        const errors = checkSource(findDtsName(args.dtsFile), args.dtsFile, args.jsFile, new Map(), args.debug);
         console.log(formatErrors(errors));
     }
     catch (e) {
@@ -181,7 +208,12 @@ interface Result {
     output: CriticError[] | string,
 }
 
-function printResults(results: Result[]): void {
+function printResults(results: Result[], json: boolean): void {
+    if (json) {
+        console.log(JSON.stringify(results));
+        return;
+    }
+
     for (const result of results) {
         console.log(`\tChecking package ${result.package} ...`);
         if (typeof result.output === "string") {
@@ -223,10 +255,16 @@ function main() {
                 default: "../DefinitelyTyped",
                 describe: "Path of DT repository cloned locally.",
             },
+            mode: {
+                type: "string",
+                required: true,
+                choices: [Mode.NameOnly, Mode.Code],
+                describe: "Mode that defines which group of checks will be made.",
+            },
             enableError: {
                 type: "array",
                 string: true,
-                describe: "Enable a critic error."
+                describe: "Enable checking for a specific export error."
             },
             debug: {
                 type: "boolean",
@@ -251,10 +289,16 @@ function main() {
                 default: "../DefinitelyTyped",
                 describe: "Path of DT repository cloned locally.",
             },
+            mode: {
+                type: "string",
+                required: true,
+                choices: [Mode.NameOnly, Mode.Code],
+                describe: "Mode that defines which group of checks will be made.",
+            },
             enableError: {
                 type: "array",
                 string: true,
-                describe: "Enable a critic error."
+                describe: "Enable checking for a specific export error."
             },
             debug: {
                 type: "boolean",
@@ -279,10 +323,16 @@ function main() {
                 default: "../DefinitelyTyped",
                 describe: "Path of DT repository cloned locally.",
             },
+            mode: {
+                type: "string",
+                required: true,
+                choices: [Mode.NameOnly, Mode.Code],
+                describe: "Mode that defines which group of checks will be made.",
+            },
             enableError: {
                 type: "array",
                 string: true,
-                describe: "Enable a critic error."
+                describe: "Enable checking for a specific export error."
             },
             debug: {
                 type: "boolean",
@@ -307,16 +357,27 @@ function main() {
                 default: "../DefinitelyTyped",
                 describe: "Path of DT repository cloned locally.",
             },
+            mode: {
+                type: "string",
+                required: true,
+                choices: [Mode.NameOnly, Mode.Code],
+                describe: "Mode that defines which group of checks will be made.",
+            },
             enableError: {
                 type: "array",
                 string: true,
-                describe: "Enable a critic error."
+                describe: "Enable checking for a specific export error."
             },
             debug: {
                 type: "boolean",
                 default: false,
                 describe: "Turn debug logging on.",
-            }
+            },
+            json: {
+                type: "boolean",
+                default: false,
+                describe: "Format output result as json."
+            },
         }, checkPackage)
         .command("check-file", "Check a JavaScript file and its matching declaration file.", {
             jsFile: {
@@ -335,7 +396,7 @@ function main() {
                 type: "boolean",
                 default: false,
                 describe: "Turn debug logging on.",
-            }
+            },
         }, checkFile)
         .command("get-non-npm", "Get list of DT packages whose source package is not on NPM", {
             dtPath: {

@@ -2,10 +2,11 @@ import {
     findDtsName,
     getNpmInfo,
     dtToNpmName,
-    toErrorKind,
+    toExportErrorKind,
     dtsCritic,
     checkSource,
-    ErrorKind } from "./index";
+    ErrorKind,
+    ExportErrorKind } from "./index";
 
 function suite(description: string, tests: { [s: string]: () => void; }) {
     describe(description, () => {
@@ -54,21 +55,32 @@ suite("dtToNpmName", {
 });
 suite("toErrorKind", {
     existent() {
-        expect(toErrorKind("NoMatchingNpmPackage")).toBe(ErrorKind.NoMatchingNpmPackage);
+        expect(toExportErrorKind("NoDefaultExport")).toBe(ErrorKind.NoDefaultExport);
     },
     existentDifferentCase() {
-        expect(toErrorKind("noMatchingNPMVersion")).toBe(ErrorKind.NoMatchingNpmVersion);
+        expect(toExportErrorKind("JspropertyNotinDTS")).toBe(ErrorKind.JsPropertyNotInDts);
     },
     nonexistent() {
-        expect(toErrorKind("FakeError")).toBe(undefined);
+        expect(toExportErrorKind("FakeError")).toBe(undefined);
     }
 });
+
+const allErrors: Map<ExportErrorKind, true> = new Map([
+    [ErrorKind.NeedsExportEquals, true],
+    [ErrorKind.NoDefaultExport, true],
+    [ErrorKind.JsCallable, true],
+    [ErrorKind.DtsCallable, true],
+    [ErrorKind.DtsPropertyNotInJs, true],
+    [ErrorKind.JsPropertyNotInDts, true],
+]);
+
 suite("checkSource", {
     noErrors() {
         expect(checkSource(
             "noErrors",
             "testsource/noErrors.d.ts",
             "testsource/noErrors.js",
+            allErrors,
             false,
         )).toEqual([]);
     },
@@ -77,6 +89,7 @@ suite("checkSource", {
             "missingJsProperty",
             "testsource/missingJsProperty.d.ts",
             "testsource/missingJsProperty.js",
+            allErrors,
             false,
         )).toEqual(expect.arrayContaining([
             {
@@ -91,6 +104,7 @@ The JavaScript module exports a property named 'foo', which is missing from the 
             "missingDtsProperty",
             "testsource/missingDtsProperty.d.ts",
             "testsource/missingDtsProperty.js",
+            allErrors,
             false,
         )).toEqual(expect.arrayContaining([
             {
@@ -109,6 +123,7 @@ The declaration module exports a property named 'foo', which is missing from the
             "missingDefault",
             "testsource/missingDefault.d.ts",
             "testsource/missingDefault.js",
+            allErrors,
             false,
         )).toEqual(expect.arrayContaining([
             {
@@ -130,6 +145,7 @@ To learn more about 'export =' syntax, see https://www.typescriptlang.org/docs/h
             "missingJsSignatureExportEquals",
             "testsource/missingJsSignatureExportEquals.d.ts",
             "testsource/missingJsSignatureExportEquals.js",
+            allErrors,
             false,
         )).toEqual(expect.arrayContaining([
             {
@@ -144,6 +160,7 @@ The JavaScript module can be called or constructed, but the declaration module c
             "missingJsSignatureNoExportEquals",
             "testsource/missingJsSignatureNoExportEquals.d.ts",
             "testsource/missingJsSignatureNoExportEquals.js",
+            allErrors,
             false,
         )).toEqual(expect.arrayContaining([
             {
@@ -161,6 +178,7 @@ To learn more about 'export =' syntax, see https://www.typescriptlang.org/docs/h
             "missingDtsSignature",
             "testsource/missingDtsSignature.d.ts",
             "testsource/missingDtsSignature.js",
+            allErrors,
             false,
         )).toEqual(expect.arrayContaining([
             {
@@ -175,6 +193,7 @@ The declaration module can be called or constructed, but the JavaScript module c
             "missingExportEquals",
             "testsource/missingExportEquals.d.ts",
             "testsource/missingExportEquals.js",
+            allErrors,
             false,
         )).toEqual(expect.arrayContaining([
             {
