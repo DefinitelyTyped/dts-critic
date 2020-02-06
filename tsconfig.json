@@ -2,7 +2,7 @@
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
-    "target": "esnext",
+    "target": "es2019",
     "module": "commonjs",
     "resolveJsonModule": true,
     "strict": true,

@@ -198,6 +198,9 @@ function formatErrors(errors: CriticError[]): string {
     for (const error of errors) {
         lines.push("Error: " + error.message);
     }
+    if (errors.length === 0) {
+        lines.push("No errors found! :)");
+    }
     return lines.join("\n");
 }
 

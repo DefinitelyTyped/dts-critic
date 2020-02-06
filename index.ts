@@ -9,8 +9,6 @@ import ts from "typescript";
 
 /** Error code used by npm when a package is not found. */
 const npmNotFound = "E404";
-const defaultFile = "index.js";
-const jsExt = ".js";
 /** Default path to store packages downloaded from npm. */
 const sourceDir = "sources";
 const ignoredProperties = ["__esModule", "prototype", "default"];
@@ -18,7 +16,7 @@ const exportEqualsSymbolName = "export=";
 
 export function dtsCritic(dtsPath: string, sourcePath?: string, enabledErrors: Map<ErrorKind, boolean> = new Map(), debug = false): CriticError[] {
     const errors = critique(dtsPath, sourcePath, debug);
-    return filterErrors(errors, enabledErrors);
+    return errors.filter(err => enabledErrors.get(err.kind) ?? defaultEnabled(err.kind));
 }
 
 function critique(dtsPath: string, sourcePath: string | undefined, debug: boolean): CriticError[] {
@@ -52,55 +50,44 @@ function critique(dtsPath: string, sourcePath: string | undefined, debug: boolea
             errors.push(...checkSource(name, dtsPath, sourcePath, debug));
         }
         else {
-            console.log("Warning: declaration provided is for a non-npm package.\
-             If you want to check the declaration against the JavaScript source code, you must provide a path to the source file.");
+            if (!module.parent) {
+                console.log(`Warning: declaration provided is for a non-npm package.
+If you want to check the declaration against the JavaScript source code, you must provide a path to the source file.`);
+            }
         }
 
         return errors;
     }
     else {
-        const npmCheck = checkNpm(name, npmInfo, header);
-        if (typeof npmCheck !== "string") {
-            return [npmCheck];
+        const npmVersion = checkNpm(name, npmInfo, header);
+        if (typeof npmVersion !== "string") {
+            return [npmVersion];
         }
 
-        return checkSource(name, dtsPath, getNpmSourcePath(sourcePath, name, npmCheck), debug);
+        return checkSource(name, dtsPath, getNpmSourcePath(sourcePath, name, npmVersion), debug);
     }
 }
 
-function filterErrors(errors: CriticError[], enabledErrors: Map<ErrorKind, boolean>): CriticError[] {
-    return errors.filter(err => {
-        if (enabledErrors.get(err.kind) === undefined) {
-            return defaultEnabled(err.kind);
-        }
-        return enabledErrors.get(err.kind);
-    });
+function isNonNpm(header: headerParser.Header | undefined): boolean {
+    return !!header && header.nonNpm;
 }
 
 function defaultEnabled(error: ErrorKind): boolean {
     switch (error) {
         case ErrorKind.NoMatchingNpmPackage:
-            return true;
         case ErrorKind.NonNpmHasMatchingPackage:
-            return true;
         case ErrorKind.NoMatchingNpmVersion:
-            return true;
         case ErrorKind.NeedsExportEquals:
-            return true;
         case ErrorKind.NoDefaultExport:
             return true;
         case ErrorKind.JsPropertyNotInDts:
-            return false;
         case ErrorKind.DtsPropertyNotInJs:
-            return false;
         case ErrorKind.JsCallable:
-            return false;
         case ErrorKind.DtsCallable:
             return false;
     }
 };
 
-// @ts-ignore
 if (!module.parent) {
     main();
 }
@@ -159,10 +146,6 @@ export function getNpmInfo(name: string): NpmInfo {
         versions: info.versions as string[],
         tags: info["dist-tags"] as { [tag: string]: string | undefined }
     };
-}
-
-function isNonNpm(header: headerParser.Header | undefined): boolean {
-    return !!header && header.nonNpm;
 }
 
 /**
@@ -272,7 +255,7 @@ function getNpmSourcePath(sourcePath: string | undefined, name: string, npmVersi
         throw new Error(`Expected matching npm version for package ${dtToNpmName(name)}.`);
     }
     const packagePath = downloadNpmPackage(name, npmVersion, sourceDir);
-    return getMainPath(packagePath);
+    return require.resolve(path.join("../", packagePath));
 }
 
 /** Returns path of downloaded npm package. */
@@ -296,32 +279,6 @@ function initDir(path: string): void {
     }
 }
 
-/** Find the path to the entry point file of a package */
-function getMainPath(sourcePath: string): string {
-    const packageInfo = JSON.parse(fs.readFileSync(path.join(sourcePath, "package.json"), { encoding: "utf8"}));
-    const main: string | undefined = packageInfo.main;
-    if (!main) {
-        return path.resolve(sourcePath, defaultFile);
-    }
-    if (isExistingFile(path.join(sourcePath, main))) {
-        return path.resolve(sourcePath, main);
-    }
-    if (isExistingFile(path.join(sourcePath, main) + jsExt)) {
-        return path.resolve(sourcePath, main + jsExt);
-    }
-    if (isExistingFile(path.join(sourcePath, main, defaultFile))) {
-        return path.resolve(sourcePath, main, defaultFile);
-    }
-    if (isExistingFile(path.join(sourcePath, defaultFile))) {
-        return path.resolve(sourcePath, defaultFile);
-    }
-    throw new Error(`Could not find entry point for package on path '${sourcePath}' with main '${packageInfo.main}'.`);
-}
-
-function isExistingFile(path: string): boolean {
-    return fs.existsSync(path) && fs.lstatSync(path).isFile();
-}
-
 export function checkSource(name: string, dtsPath: string, srcPath: string, debug: boolean): ExportsError[] {
     const diagnostics = checkExports(name, dtsPath, srcPath);
     if (debug) {
@@ -335,7 +292,12 @@ function formatDebug(name: string, diagnostics: ExportsDiagnostics): string {
     const lines: string[] = [];
     lines.push(`\tDiagnostics for package ${name}.`);
     lines.push("\tInferred source module structure:");
-    lines.push(diagnostics.jsExportKind);
+    if (isSuccess(diagnostics.jsExportKind)) {
+        lines.push(diagnostics.jsExportKind.result);
+    }
+    else {
+        lines.push(`Could not infer type of JavaScript exports. Reason: ${diagnostics.jsExportKind.reason}`);
+    }
     lines.push("\tInferred source export type:");
     if (isSuccess(diagnostics.jsExportType)) {
         lines.push(formatType(diagnostics.jsExportType.result));
@@ -366,7 +328,7 @@ function formatDebug(name: string, diagnostics: ExportsDiagnostics): string {
 
 function formatType(type: ts.Type): string {
     const lines: string[] = [];
-    //@ts-ignore
+    //@ts-ignore property `checker` of `ts.Type` is marked internal. The alternative is to have a TypeChecker parameter.
     const checker: ts.TypeChecker = type.checker;
 
     const properties = type.getProperties();
@@ -406,8 +368,7 @@ function checkExports(name: string, dtsPath: string, sourcePath: string): Export
 
     const dtsDiagnostics = inspectDts(dtsPath, name);
 
-    if (sourceDiagnostics.exportEquals
-        && isSuccess(sourceDiagnostics.exportEquals)
+    if (isSuccess(sourceDiagnostics.exportEquals)
         && sourceDiagnostics.exportEquals.result.judgement === ExportEqualsJudgement.Required
         && isSuccess(dtsDiagnostics.exportKind)
         && dtsDiagnostics.exportKind.result !== DtsExportKind.ExportEquals) {
@@ -453,54 +414,60 @@ To learn more about 'export =' syntax, see ${exportEqualsLink}.`,
 }
 
 function inspectJs(sourceFile: ts.SourceFile, checker: ts.TypeChecker, packageName: string): JsExportsInfo {
-    const exportKind = classifyExports(sourceFile);
+    const exportKind = getJsExportKind(sourceFile);
     const exportType = getJSExportType(sourceFile, checker, exportKind);
     const exportsDefault = sourceExportsDefault(sourceFile, packageName);
 
     let exportEquals;
-    if (exportType.kind === InferenceResultKind.Success && exportKind === JsExportKind.CommonJs) {
+    if (isSuccess(exportType) && isSuccess(exportKind) && exportKind.result === JsExportKind.CommonJs) {
         exportEquals = moduleTypeNeedsExportEquals(exportType.result, checker);
+    }
+    else {
+        exportEquals = mergeErrors(exportType, exportKind);
     }
 
     return { exportKind, exportType, exportEquals, exportsDefault };
 }
 
-function classifyExports(sourceFile: ts.SourceFile): JsExportKind {
-    // @ts-ignore
+function getJsExportKind(sourceFile: ts.SourceFile): InferenceResult<JsExportKind> {
+    // @ts-ignore property `commonJsModuleIndicator` of `ts.SourceFile` is marked internal.
     if (sourceFile.commonJsModuleIndicator) {
-        return JsExportKind.CommonJs;
+        return inferenceSuccess(JsExportKind.CommonJs);
     }
-    // @ts-ignore
-    else if (sourceFile.externalModuleIndicator) {
-        return JsExportKind.ES6;
+    // @ts-ignore property `externalModuleIndicator` of `ts.SourceFile` is marked internal.
+    if (sourceFile.externalModuleIndicator) {
+        return inferenceSuccess(JsExportKind.ES6);
     }
-    return JsExportKind.Undefined;
+    return inferenceError("Could not infer export kind of source file.");
 }
 
-function getJSExportType(sourceFile: ts.SourceFile, checker: ts.TypeChecker, kind: JsExportKind): InferenceResult<ts.Type> {
-    switch (kind) {
-        case JsExportKind.CommonJs: {
-            checker.getSymbolAtLocation(sourceFile); // TODO: get symbol in a safer way?
-            //@ts-ignore
-            const fileSymbol: ts.Symbol | undefined = sourceFile.symbol;
-            if (!fileSymbol) {
-                return inferenceError(`TS compiler could not find symbol for file node '${sourceFile.fileName}'.`);
+function getJSExportType(
+    sourceFile: ts.SourceFile,
+    checker: ts.TypeChecker,
+    exportKind: InferenceResult<JsExportKind>): InferenceResult<ts.Type> {
+    if (isSuccess(exportKind)) {
+        switch (exportKind.result) {
+            case JsExportKind.CommonJs: {
+                checker.getSymbolAtLocation(sourceFile); // TODO: get symbol in a safer way?
+                //@ts-ignore property `symbol` of `ts.Node` is marked internal.
+                const fileSymbol: ts.Symbol | undefined = sourceFile.symbol;
+                if (!fileSymbol) {
+                    return inferenceError(`TS compiler could not find symbol for file node '${sourceFile.fileName}'.`);
+                }
+                const exportType = checker.getTypeOfSymbolAtLocation(fileSymbol, sourceFile);
+                return inferenceSuccess(exportType);
             }
-            const exportType = checker.getTypeOfSymbolAtLocation(fileSymbol, sourceFile);
-            return inferenceSuccess(exportType);
-        }
-        case JsExportKind.ES6: {
-            const fileSymbol = checker.getSymbolAtLocation(sourceFile);
-            if (!fileSymbol) {
-                return inferenceError(`TS compiler could not find symbol for file node '${sourceFile.fileName}'.`);
+            case JsExportKind.ES6: {
+                const fileSymbol = checker.getSymbolAtLocation(sourceFile);
+                if (!fileSymbol) {
+                    return inferenceError(`TS compiler could not find symbol for file node '${sourceFile.fileName}'.`);
+                }
+                const exportType = checker.getTypeOfSymbolAtLocation(fileSymbol, sourceFile);
+                return inferenceSuccess(exportType);
             }
-            const exportType = checker.getTypeOfSymbolAtLocation(fileSymbol, sourceFile);
-            return inferenceSuccess(exportType);
-        }
-        case JsExportKind.Undefined: {
-            return inferenceError(`Could not infer type of exports because exports kind is undefined.`);
         }
     }
+    return inferenceError(`Could not infer type of exports because exports kind is undefined.`);
 }
 
 /**
@@ -522,7 +489,7 @@ function moduleTypeNeedsExportEquals(type: ts.Type, checker: ts.TypeChecker): In
     }
 
     const isObject = type.getFlags() & ts.TypeFlags.Object;
-    // @ts-ignore
+    // @ts-ignore property `isArrayLikeType` of `ts.TypeChecker` is marked internal.
     if (isObject && !callableOrNewable(type) && !checker.isArrayLikeType(type)) {
         const judgement = ExportEqualsJudgement.NotRequired;
         const reason = "'module.exports' is an object which is neither a function, class, or array";
@@ -542,7 +509,7 @@ function moduleTypeNeedsExportEquals(type: ts.Type, checker: ts.TypeChecker): In
         return inferenceSuccess({ judgement, reason });
     }
 
-    // @ts-ignore
+    // @ts-ignore property `isArrayLikeType` of `ts.TypeChecker` is marked internal.
     if (checker.isArrayLikeType(type)) {
         const judgement =  ExportEqualsJudgement.Required;
         const reason = `'module.exports' has array-like type ${checker.typeToString(type)}`;
@@ -614,7 +581,11 @@ function getDtsExportKind(sourceFile: ts.SourceFile): InferenceResult<DtsExportK
     return inferenceError("Could not infer export kind of declaration file.");
 }
 
-function getDtsExportType(sourceFile: ts.SourceFile, checker: ts.TypeChecker, symbolResult: InferenceResult<ts.Symbol>, exportKindResult: InferenceResult<DtsExportKind>): InferenceResult<ts.Type> {
+function getDtsExportType(
+    sourceFile: ts.SourceFile,
+    checker: ts.TypeChecker,
+    symbolResult: InferenceResult<ts.Symbol>,
+    exportKindResult: InferenceResult<DtsExportKind>): InferenceResult<ts.Type> {
     if (isSuccess(symbolResult) && isSuccess(exportKindResult)) {
         const symbol = symbolResult.result;
         const exportKind = exportKindResult.result;
@@ -634,15 +605,7 @@ function getDtsExportType(sourceFile: ts.SourceFile, checker: ts.TypeChecker, sy
         }
     }
 
-    const errorReasons = [];
-    if (!isSuccess(symbolResult)) {
-        errorReasons.push(symbolResult.reason);
-    }
-    if (!isSuccess(exportKindResult)) {
-        errorReasons.push(exportKindResult.reason);
-    }
-
-    return inferenceError(errorReasons.join(" "));
+    return mergeErrors(symbolResult, exportKindResult);
 }
 
 /**
@@ -937,26 +900,25 @@ interface Position {
 }
 
 interface ExportsDiagnostics {
-    jsExportKind: JsExportKind,
+    jsExportKind: InferenceResult<JsExportKind>,
     jsExportType: InferenceResult<ts.Type>,
-    dtsExportKind?: InferenceResult<DtsExportKind>,
-    dtsExportType?: InferenceResult<ts.Type>,
+    dtsExportKind: InferenceResult<DtsExportKind>,
+    dtsExportType: InferenceResult<ts.Type>,
     errors: ExportsError[],
 }
 
 type ExportsError = ExportEqualsError | DefaultExportError | MissingExports;
 
 interface JsExportsInfo {
-    exportKind: JsExportKind,
+    exportKind: InferenceResult<JsExportKind>,
     exportType: InferenceResult<ts.Type>,
-    exportEquals?: InferenceResult<ExportEqualsDiagnostics>,
+    exportEquals: InferenceResult<ExportEqualsDiagnostics>,
     exportsDefault: boolean,
 }
 
 enum JsExportKind {
     CommonJs = "CommonJs",
     ES6 = "ES6",
-    Undefined = "Undefined",
 };
 
 interface ExportEqualsDiagnostics {
@@ -1001,7 +963,7 @@ enum InferenceResultKind {
 
 interface InferenceError {
     kind: InferenceResultKind.Error;
-    reason: string,
+    reason?: string,
 }
 
 interface InferenceSuccess<T> {
@@ -1009,7 +971,7 @@ interface InferenceSuccess<T> {
     result: T;
 }
 
-function inferenceError(reason: string): InferenceError {
+function inferenceError(reason?: string): InferenceError {
     return { kind: InferenceResultKind.Error, reason };
 }
 
@@ -1023,4 +985,17 @@ function isSuccess<T>(inference: InferenceResult<T>): inference is InferenceSucc
 
 function isError<T>(inference: InferenceResult<T>): inference is InferenceError {
     return inference.kind === InferenceResultKind.Error;
+}
+
+function mergeErrors(...results: (InferenceResult<unknown> | string)[]): InferenceError {
+    const reasons: string[] = [];
+    for (const result of results) {
+        if (typeof result === "string") {
+            reasons.push(result);
+        }
+        else if (isError(result) && result.reason) {
+            reasons.push(result.reason);
+        }
+    }
+    return inferenceError(reasons.join(" "));
 }
