@@ -11,7 +11,6 @@ import ts from "typescript";
 const npmNotFound = "E404";
 /** Default path to store packages downloaded from npm. */
 const sourceDir = "sources";
-const ignoredProperties = ["__esModule", "prototype", "default"];
 const exportEqualsSymbolName = "export=";
 
 export function dtsCritic(dtsPath: string, sourcePath?: string, enabledErrors: Map<ErrorKind, boolean> = new Map(), debug = false): CriticError[] {
@@ -270,7 +269,17 @@ function downloadNpmPackage(name: string, version: string, outDir: string): stri
     initDir(outPath);
     cp.execFileSync("tar", ["-xz", "-f", tarballName, "-C", outPath], cpOpts);
     fs.unlinkSync(tarballName);
-    return path.join(outPath, "package");
+    return path.join(outPath, getPackageDir(outPath));
+}
+
+function getPackageDir(outPath: string): string {
+    const dirs = fs.readdirSync(outPath, { encoding: "utf8", withFileTypes: true });
+    for (const dirent of dirs) {
+        if (dirent.isDirectory()) {
+            return dirent.name;
+        }
+    }
+    return "package";
 }
 
 function initDir(path: string): void {
@@ -374,7 +383,7 @@ function checkExports(name: string, dtsPath: string, sourcePath: string): Export
         && dtsDiagnostics.exportKind.result !== DtsExportKind.ExportEquals) {
         const error = {
             kind: ErrorKind.NeedsExportEquals,
-            message: `The declaration doesn't match the JavaScript module 'missingExportEquals'. Reason:
+            message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
 The declaration should use 'export =' syntax because the JavaScript source uses 'module.exports =' syntax and ${sourceDiagnostics.exportEquals.result.reason}.
 
 To learn more about 'export =' syntax, see ${exportEqualsLink}.`,
@@ -397,7 +406,7 @@ To learn more about 'export =' syntax, see ${exportEqualsLink}.`,
         errors.push({
             kind: ErrorKind.NoDefaultExport,
             position: dtsDiagnostics.defaultExport,
-            message: `The declaration doesn't match the JavaScript module 'missingDefault'. Reason:
+            message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
 The declaration specifies 'export default' but the JavaScript source does not mention 'default' anywhere.
 
 The most common way to resolve this error is to use 'export =' syntax instead of 'export default'.
@@ -635,6 +644,8 @@ function getDtsDefaultExport(sourceFile: ts.SourceFile, moduleType: InferenceRes
     }
 }
 
+const ignoredProperties = ["__esModule", "prototype", "default"];
+
 function ignoreProperty(property: ts.Symbol): boolean {
     const name = property.getName();
     return name.startsWith("_") || ignoredProperties.includes(name);
@@ -702,7 +713,7 @@ The declaration module can be called or constructed, but the JavaScript module c
     for (const sourceProperty of sourceProperties) {
         // TODO: check `prototype` properties.
         if (ignoreProperty(sourceProperty)) continue;
-        if (dtsProperties.find(s => s.getName() === sourceProperty.getName()) === undefined) {
+        if (!dtsProperties.find(s => s.getName() === sourceProperty.getName())) {
             errors.push({
                 kind: ErrorKind.JsPropertyNotInDts,
                 message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
@@ -714,7 +725,7 @@ The JavaScript module exports a property named '${sourceProperty.getName()}', wh
     for (const dtsProperty of dtsProperties) {
         // TODO: check `prototype` properties.
         if (ignoreProperty(dtsProperty)) continue;
-        if (sourceProperties.find(s => s.getName() === dtsProperty.getName()) === undefined) {
+        if (!sourceProperties.find(s => s.getName() === dtsProperty.getName())) {
             const error: MissingExports = {
                 kind: ErrorKind.DtsPropertyNotInJs,
                 message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
@@ -753,29 +764,6 @@ function isExportConstruct(node: ts.Node): boolean {
 function hasExportModifier(node: ts.Node): boolean {
     if (node.modifiers) {
         return node.modifiers.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword);
-    }
-    return false;
-}
-
-function isCommonJSExport(node: ts.Node, sourceFile?: ts.SourceFile): boolean {
-    if (ts.isPropertyAccessExpression(node) && node.getText(sourceFile) === "module.exports") {
-        return true;
-    }
-    if (ts.isIdentifier(node) && node.text === "exports") {
-        return true;
-    }
-    return false;
-}
-
-function isES6Export(node: ts.Node): boolean {
-    if (ts.isExportDeclaration(node)) {
-        return true;
-    }
-    if (ts.isExportAssignment(node) && !node.isExportEquals) {
-        return true;
-    }
-    if (hasExportModifier(node)) {
-        return true;
     }
     return false;
 }
@@ -853,7 +841,7 @@ export interface CriticError {
 }
 
 export enum ErrorKind {
-    /** Declaration is not marked as non npm in header and has no matching npm package. */
+    /** Declaration is marked as npm in header and has no matching npm package. */
     NoMatchingNpmPackage,
     /** Declaration has no npm package matching specified version. */
     NoMatchingNpmVersion,
