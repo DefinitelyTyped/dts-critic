@@ -68,8 +68,8 @@ suite("toErrorKind", {
 const allErrors: Map<ExportErrorKind, true> = new Map([
     [ErrorKind.NeedsExportEquals, true],
     [ErrorKind.NoDefaultExport, true],
-    [ErrorKind.JsCallable, true],
-    [ErrorKind.DtsCallable, true],
+    [ErrorKind.JsSignatureNotInDts, true],
+    [ErrorKind.DtsSignatureNotInJs, true],
     [ErrorKind.DtsPropertyNotInJs, true],
     [ErrorKind.JsPropertyNotInDts, true],
 ]);
@@ -149,7 +149,7 @@ To learn more about 'export =' syntax, see https://www.typescriptlang.org/docs/h
             false,
         )).toEqual(expect.arrayContaining([
             {
-                kind: ErrorKind.JsCallable,
+                kind: ErrorKind.JsSignatureNotInDts,
                 message: `The declaration doesn't match the JavaScript module 'missingJsSignatureExportEquals'. Reason:
 The JavaScript module can be called or constructed, but the declaration module cannot.`,
             }
@@ -164,7 +164,7 @@ The JavaScript module can be called or constructed, but the declaration module c
             false,
         )).toEqual(expect.arrayContaining([
             {
-                kind: ErrorKind.JsCallable,
+                kind: ErrorKind.JsSignatureNotInDts,
                 message: `The declaration doesn't match the JavaScript module 'missingJsSignatureNoExportEquals'. Reason:
 The JavaScript module can be called or constructed, but the declaration module cannot.
 
@@ -182,7 +182,7 @@ To learn more about 'export =' syntax, see https://www.typescriptlang.org/docs/h
             false,
         )).toEqual(expect.arrayContaining([
             {
-                kind: ErrorKind.DtsCallable,
+                kind: ErrorKind.DtsSignatureNotInJs,
                 message: `The declaration doesn't match the JavaScript module 'missingDtsSignature'. Reason:
 The declaration module can be called or constructed, but the JavaScript module cannot.`,
             }

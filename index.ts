@@ -109,8 +109,8 @@ function defaultEnabledErrors(error: ExportErrorKind): boolean {
             return true;
         case ErrorKind.JsPropertyNotInDts:
         case ErrorKind.DtsPropertyNotInJs:
-        case ErrorKind.JsCallable:
-        case ErrorKind.DtsCallable:
+        case ErrorKind.JsSignatureNotInDts:
+        case ErrorKind.DtsSignatureNotInJs:
             return false;
     }
 };
@@ -532,13 +532,13 @@ function moduleTypeNeedsExportEquals(type: ts.Type, checker: ts.TypeChecker): In
 
     const isObject = type.getFlags() & ts.TypeFlags.Object;
     // @ts-ignore property `isArrayLikeType` of `ts.TypeChecker` is marked internal.
-    if (isObject && !callableOrNewable(type) && !checker.isArrayLikeType(type)) {
+    if (isObject && !hasSignatures(type) && !checker.isArrayLikeType(type)) {
         const judgement = ExportEqualsJudgement.NotRequired;
         const reason = "'module.exports' is an object which is neither a function, class, or array";
         return inferenceSuccess({ judgement, reason });
     }
 
-    if (callableOrNewable(type)) {
+    if (hasSignatures(type)) {
         const judgement =  ExportEqualsJudgement.Required;
         const reason = "'module.exports' can be called or constructed";
         return inferenceSuccess({ judgement, reason });
@@ -561,7 +561,7 @@ function moduleTypeNeedsExportEquals(type: ts.Type, checker: ts.TypeChecker): In
     return inferenceError(`Could not analyze type '${checker.typeToString(type)}'.`);
 }
 
-function callableOrNewable(type: ts.Type): boolean {
+function hasSignatures(type: ts.Type): boolean {
     return type.getCallSignatures().length > 0 || type.getConstructSignatures().length > 0;
 }
 
@@ -713,17 +713,17 @@ function exportTypesCompatibility(
     }
 
     const errors: MissingExport[] = [];
-    if (callableOrNewable(sourceType.result) && !callableOrNewable(dtsType.result)) {
+    if (hasSignatures(sourceType.result) && !hasSignatures(dtsType.result)) {
         if (isSuccess(dtsExportKind) && dtsExportKind.result === DtsExportKind.ExportEquals) {
             errors.push({
-                kind: ErrorKind.JsCallable,
+                kind: ErrorKind.JsSignatureNotInDts,
                 message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
 The JavaScript module can be called or constructed, but the declaration module cannot.`,
             });
         }
         else {
             errors.push({
-                kind: ErrorKind.JsCallable,
+                kind: ErrorKind.JsSignatureNotInDts,
                 message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
 The JavaScript module can be called or constructed, but the declaration module cannot.
 
@@ -733,9 +733,9 @@ To learn more about 'export =' syntax, see ${exportEqualsLink}.`,
         }
     }
 
-    if (callableOrNewable(dtsType.result) && !callableOrNewable(sourceType.result)) {
+    if (hasSignatures(dtsType.result) && !hasSignatures(sourceType.result)) {
         errors.push({
-            kind: ErrorKind.DtsCallable,
+            kind: ErrorKind.DtsSignatureNotInJs,
             message: `The declaration doesn't match the JavaScript module '${name}'. Reason:
 The declaration module can be called or constructed, but the JavaScript module cannot.`,
         });
@@ -854,10 +854,10 @@ export function toExportErrorKind(error: string): ExportErrorKind | undefined {
             return ErrorKind.JsPropertyNotInDts;
         case "dtspropertynotinjs":
             return ErrorKind.DtsPropertyNotInJs;
-        case "jscallable":
-            return ErrorKind.JsCallable;
-        case "dtscallable":
-            return ErrorKind.DtsCallable;
+        case "jssignaturenotindts":
+            return ErrorKind.JsSignatureNotInDts;
+        case "dtssignaturenotinjs":
+            return ErrorKind.DtsSignatureNotInJs;
     }
 }
 
@@ -874,18 +874,18 @@ export enum ErrorKind {
     NoMatchingNpmVersion,
     /** Declaration is not for an npm package, but has a name that conflicts with an existing npm package. */
     NonNpmHasMatchingPackage,
-    /** Declaration needs to use `export =` to match source package's behavior. */
+    /** Declaration needs to use `export =` to match the JavaScript module's behavior. */
     NeedsExportEquals,
-    /** Declaration has a default export, but source module does not have a default export. */
+    /** Declaration has a default export, but JavaScript module does not have a default export. */
     NoDefaultExport,
-    /** Source exports property not found in declaration's exports. */
+    /** JavaScript exports property not found in declaration exports. */
     JsPropertyNotInDts,
-    /** Declaration exports property not found in source's exports. */
+    /** Declaration exports property not found in JavaScript exports. */
     DtsPropertyNotInJs,
-    /** Source module is callable or newable, but declaration module is not. */
-    JsCallable,
-    /** Declaration module is callable or newable, but source module is not. */
-    DtsCallable,
+    /** JavaScript module has signatures, but declaration module does not. */
+    JsSignatureNotInDts,
+    /** Declaration module has signatures, but JavaScript module does not. */
+    DtsSignatureNotInJs,
 }
 
 interface NpmError extends CriticError {
@@ -906,7 +906,7 @@ interface DefaultExportError extends CriticError {
 }
 
 interface MissingExport extends CriticError {
-    kind: ErrorKind.JsPropertyNotInDts| ErrorKind.DtsPropertyNotInJs | ErrorKind.JsCallable | ErrorKind.DtsCallable,
+    kind: ErrorKind.JsPropertyNotInDts| ErrorKind.DtsPropertyNotInJs | ErrorKind.JsSignatureNotInDts | ErrorKind.DtsSignatureNotInJs,
 }
 
 interface Position {
