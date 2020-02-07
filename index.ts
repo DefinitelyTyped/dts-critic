@@ -7,12 +7,6 @@ import semver = require("semver");
 import { sync as commandExistsSync } from "command-exists";
 import ts from "typescript";
 
-/** Error code used by npm when a package is not found. */
-const npmNotFound = "E404";
-/** Default path to store packages downloaded from npm. */
-const sourceDir = "sources";
-const exportEqualsSymbolName = "export=";
-
 export enum Mode {
     /** Checks based only on the package name and on the declaration's DefinitelyTyped header. */
     NameOnly = "name-only",
@@ -115,13 +109,9 @@ function defaultEnabledErrors(error: ExportErrorKind): boolean {
     }
 };
 
-if (!module.parent) {
-    main();
-}
-
 function main() {
     const argv = yargs.
-        usage("$0 --dts path-to-d.ts [--js path-to-source] [--debug]\n\nIf source-folder is not provided, I will look for a matching package on npm.").
+        usage("$0 --dts path-to-d.ts [--js path-to-source] [--mode mode] [--debug]\n\nIf source-folder is not provided, I will look for a matching package on npm.").
         option("dts", {
             describe: "Path of declaration file to be critiqued.",
             type: "string",
@@ -131,6 +121,12 @@ function main() {
             describe: "Path of JavaScript file to be used as source.",
             type: "string",
         }).
+        option("mode", {
+            describe: "Mode defines what checks will be performed.",
+            type: "string",
+            default: Mode.NameOnly,
+            choices: [Mode.NameOnly, Mode.Code],
+        }).
         option("debug", {
             describe: "Turn debug logging on.",
             type: "boolean",
@@ -138,7 +134,16 @@ function main() {
         }).
         help().
         argv;
-    const errors = dtsCritic(argv.dts, argv.js, undefined, argv.debug);
+
+    let opts;
+    switch (argv.mode) {
+        case Mode.NameOnly:
+            opts = { mode: argv.mode };
+            break;
+        case Mode.Code:
+            opts = { mode: argv.mode, errors: new Map() };
+    }
+    const errors = dtsCritic(argv.dts, argv.js, opts, argv.debug);
     if (errors.length === 0) {
         console.log("No errors!");
     }
@@ -148,6 +153,8 @@ function main() {
         }
     }
 }
+
+const npmNotFound = "E404";
 
 export function getNpmInfo(name: string): NpmInfo {
     const npmName = dtToNpmName(name);
@@ -269,6 +276,9 @@ export function findDtsName(dtsPath: string) {
     }
     return path.basename(path.dirname(resolved));
 }
+
+/** Default path to store packages downloaded from npm. */
+const sourceDir = "sources";
 
 /**
  * If path of source package was not provided, downloads package from npm and return path to
@@ -622,6 +632,8 @@ function getDtsExportKind(sourceFile: ts.SourceFile): InferenceResult<DtsExportK
     }
     return inferenceError("Could not infer export kind of declaration file.");
 }
+
+const exportEqualsSymbolName = "export=";
 
 function getDtsExportType(
     sourceFile: ts.SourceFile,
@@ -1013,4 +1025,8 @@ function mergeErrors(...results: (InferenceResult<unknown> | string)[]): Inferen
         }
     }
     return inferenceError(reasons.join(" "));
+}
+
+if (!module.parent) {
+    main();
 }
