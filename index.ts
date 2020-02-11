@@ -859,7 +859,7 @@ export function dtToNpmName(baseName: string) {
 /**
  * @param error case-insensitive name of the error
  */
-export function toExportErrorKind(error: string): ExportErrorKind | undefined {
+export function parseExportErrorKind(error: string): ExportErrorKind | undefined {
     error = error.toLowerCase();
     switch (error) {
         case "needsexportequals":

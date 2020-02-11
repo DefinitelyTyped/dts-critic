@@ -2,7 +2,7 @@ import {
     findDtsName,
     getNpmInfo,
     dtToNpmName,
-    toExportErrorKind,
+    parseExportErrorKind,
     dtsCritic,
     checkSource,
     ErrorKind,
@@ -53,15 +53,15 @@ suite("dtToNpmName", {
         expect(dtToNpmName("babel__core")).toBe("@babel/core");
     },
 });
-suite("toErrorKind", {
+suite("parseExportErrorKind", {
     existent() {
-        expect(toExportErrorKind("NoDefaultExport")).toBe(ErrorKind.NoDefaultExport);
+        expect(parseExportErrorKind("NoDefaultExport")).toBe(ErrorKind.NoDefaultExport);
     },
     existentDifferentCase() {
-        expect(toExportErrorKind("JspropertyNotinDTS")).toBe(ErrorKind.JsPropertyNotInDts);
+        expect(parseExportErrorKind("JspropertyNotinDTS")).toBe(ErrorKind.JsPropertyNotInDts);
     },
     nonexistent() {
-        expect(toExportErrorKind("FakeError")).toBe(undefined);
+        expect(parseExportErrorKind("FakeError")).toBe(undefined);
     }
 });
 
