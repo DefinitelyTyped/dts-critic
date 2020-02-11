@@ -21,6 +21,7 @@ export function parseMode(mode: string): Mode | undefined {
         case Mode.Code:
             return Mode.Code;
     }
+    return undefined;
 }
 
 export type CheckOptions = NameOnlyOptions | CodeOptions;
@@ -192,9 +193,11 @@ function checkNonNpm(name: string, npmInfo: NpmInfo): NonNpmError | undefined {
             message: `The non-npm package '${name}' conflicts with the existing npm package '${dtToNpmName(name)}'.
 Try adding -browser to the end of the name to get
 
-${name}-browser`
+    ${name}-browser
+`
         };
     }
+    return undefined;
 }
 
 /**
@@ -687,6 +690,7 @@ function getDtsDefaultExport(sourceFile: ts.SourceFile, moduleType: InferenceRes
             length: exportDefault.declarations[0].getWidth(),
         };
     }
+    return undefined;
 }
 
 const ignoredProperties = ["__esModule", "prototype", "default"];
@@ -871,6 +875,7 @@ export function toExportErrorKind(error: string): ExportErrorKind | undefined {
         case "dtssignaturenotinjs":
             return ErrorKind.DtsSignatureNotInJs;
     }
+    return undefined;
 }
 
 export interface CriticError {

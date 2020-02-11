@@ -242,7 +242,8 @@ You should copy the major and minor version from the package on npm.`),
                 message: `The non-npm package 'tslib' conflicts with the existing npm package 'tslib'.
 Try adding -browser to the end of the name to get
 
-tslib-browser`,
+    tslib-browser
+`,
             },
         ]);
     }

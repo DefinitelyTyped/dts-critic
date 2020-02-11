@@ -37,8 +37,7 @@
         "@types/command-exists": "^1.2.0",
         "@types/gulp": "^4.0.6",
         "@types/jest": "^24.0.0",
-        "@types/node": "^13.1.8",
-        "@types/npm": "^2.0.31",
+        "@types/node": "12.0.x",
         "@types/semver": "^6.0.1",
         "@types/strip-json-comments": "0.0.30",
         "@types/yargs": "^12.0.8",
@@ -52,7 +51,6 @@
         "eslint-plugin-no-null": "^1.0.2",
         "gulp": "^4.0.2",
         "gulp-typescript": "^5.0.1",
-        "typescript": "^3.7.5",
         "jest": "^24.7.1",
         "jest-cli": "^24.9.0",
         "strip-json-comments": "^2.0.1"
