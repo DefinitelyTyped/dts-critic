@@ -886,23 +886,23 @@ export interface CriticError {
 
 export enum ErrorKind {
     /** Declaration is marked as npm in header and has no matching npm package. */
-    NoMatchingNpmPackage,
+    NoMatchingNpmPackage = "NoMatchingNpmPackage",
     /** Declaration has no npm package matching specified version. */
-    NoMatchingNpmVersion,
+    NoMatchingNpmVersion = "NoMatchingNpmVersion",
     /** Declaration is not for an npm package, but has a name that conflicts with an existing npm package. */
-    NonNpmHasMatchingPackage,
+    NonNpmHasMatchingPackage = "NonNpmHasMatchingPackage",
     /** Declaration needs to use `export =` to match the JavaScript module's behavior. */
-    NeedsExportEquals,
+    NeedsExportEquals = "NeedsExportEquals",
     /** Declaration has a default export, but JavaScript module does not have a default export. */
-    NoDefaultExport,
+    NoDefaultExport = "NoDefaultExport",
     /** JavaScript exports property not found in declaration exports. */
-    JsPropertyNotInDts,
+    JsPropertyNotInDts = "JsPropertyNotInDts",
     /** Declaration exports property not found in JavaScript exports. */
-    DtsPropertyNotInJs,
+    DtsPropertyNotInJs = "DtsPropertyNotInJs",
     /** JavaScript module has signatures, but declaration module does not. */
-    JsSignatureNotInDts,
+    JsSignatureNotInDts = "JsSignatureNotInDts",
     /** Declaration module has signatures, but JavaScript module does not. */
-    DtsSignatureNotInJs,
+    DtsSignatureNotInJs = "DtsSignatureNotInJs",
 }
 
 interface NpmError extends CriticError {
