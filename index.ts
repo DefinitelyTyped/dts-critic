@@ -281,7 +281,7 @@ export function findDtsName(dtsPath: string) {
 }
 
 /** Default path to store packages downloaded from npm. */
-const sourceDir = "sources";
+const sourceDir = path.resolve(path.join(__dirname, "..", "sources"));
 
 /**
  * If path of source package was not provided, downloads package from npm and return path to
@@ -295,7 +295,7 @@ function getNpmSourcePath(sourcePath: string | undefined, name: string, npmVersi
         throw new Error(`Expected matching npm version for package ${dtToNpmName(name)}.`);
     }
     const packagePath = downloadNpmPackage(name, npmVersion, sourceDir);
-    return require.resolve(path.join("../", packagePath));
+    return require.resolve(path.resolve(packagePath));
 }
 
 /** Returns path of downloaded npm package. */
@@ -306,7 +306,7 @@ function downloadNpmPackage(name: string, version: string, outDir: string): stri
     const npmPack = cp.execFileSync("npm", ["pack", fullName, "--json", "--silent"], cpOpts);
     const npmPackOut = JSON.parse(npmPack)[0];
     const tarballName: string = npmPackOut.filename;
-    const outPath = path.join(outDir, `${name}`);
+    const outPath = path.join(outDir, name);
     initDir(outPath);
     cp.execFileSync("tar", ["-xz", "-f", tarballName, "-C", outPath], cpOpts);
     fs.unlinkSync(tarballName);
@@ -323,9 +323,9 @@ function getPackageDir(outPath: string): string {
     return "package";
 }
 
-function initDir(path: string): void {
-    if (!fs.existsSync(path)) {
-        fs.mkdirSync(path);
+function initDir(dirPath: string): void {
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
     }
 }
 
