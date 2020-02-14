@@ -7,6 +7,27 @@ import semver = require("semver");
 import { sync as commandExistsSync } from "command-exists";
 import ts from "typescript";
 
+export enum ErrorKind {
+    /** Declaration is marked as npm in header and has no matching npm package. */
+    NoMatchingNpmPackage = "NoMatchingNpmPackage",
+    /** Declaration has no npm package matching specified version. */
+    NoMatchingNpmVersion = "NoMatchingNpmVersion",
+    /** Declaration is not for an npm package, but has a name that conflicts with an existing npm package. */
+    NonNpmHasMatchingPackage = "NonNpmHasMatchingPackage",
+    /** Declaration needs to use `export =` to match the JavaScript module's behavior. */
+    NeedsExportEquals = "NeedsExportEquals",
+    /** Declaration has a default export, but JavaScript module does not have a default export. */
+    NoDefaultExport = "NoDefaultExport",
+    /** JavaScript exports property not found in declaration exports. */
+    JsPropertyNotInDts = "JsPropertyNotInDts",
+    /** Declaration exports property not found in JavaScript exports. */
+    DtsPropertyNotInJs = "DtsPropertyNotInJs",
+    /** JavaScript module has signatures, but declaration module does not. */
+    JsSignatureNotInDts = "JsSignatureNotInDts",
+    /** Declaration module has signatures, but JavaScript module does not. */
+    DtsSignatureNotInJs = "DtsSignatureNotInJs",
+}
+
 export enum Mode {
     /** Checks based only on the package name and on the declaration's DefinitelyTyped header. */
     NameOnly = "name-only",
@@ -97,18 +118,7 @@ function isNonNpm(header: headerParser.Header | undefined): boolean {
     return !!header && header.nonNpm;
 }
 
-function defaultEnabledErrors(error: ExportErrorKind): boolean {
-    switch (error) {
-        case ErrorKind.NeedsExportEquals:
-        case ErrorKind.NoDefaultExport:
-            return true;
-        case ErrorKind.JsPropertyNotInDts:
-        case ErrorKind.DtsPropertyNotInJs:
-        case ErrorKind.JsSignatureNotInDts:
-        case ErrorKind.DtsSignatureNotInJs:
-            return false;
-    }
-};
+export const defaultErrors: ExportErrorKind[] = [ErrorKind.NeedsExportEquals, ErrorKind.NoDefaultExport];
 
 function main() {
     const argv = yargs.
@@ -340,7 +350,7 @@ export function checkSource(
         console.log(formatDebug(name, diagnostics));
     }
 
-    return diagnostics.errors.filter(err => enabledErrors.get(err.kind) ?? defaultEnabledErrors(err.kind));
+    return diagnostics.errors.filter(err => enabledErrors.get(err.kind) ?? defaultErrors.includes(err.kind));
 }
 
 function formatDebug(name: string, diagnostics: ExportsDiagnostics): string {
@@ -882,27 +892,6 @@ export interface CriticError {
     kind: ErrorKind,
     message: string,
     position?: Position,
-}
-
-export enum ErrorKind {
-    /** Declaration is marked as npm in header and has no matching npm package. */
-    NoMatchingNpmPackage = "NoMatchingNpmPackage",
-    /** Declaration has no npm package matching specified version. */
-    NoMatchingNpmVersion = "NoMatchingNpmVersion",
-    /** Declaration is not for an npm package, but has a name that conflicts with an existing npm package. */
-    NonNpmHasMatchingPackage = "NonNpmHasMatchingPackage",
-    /** Declaration needs to use `export =` to match the JavaScript module's behavior. */
-    NeedsExportEquals = "NeedsExportEquals",
-    /** Declaration has a default export, but JavaScript module does not have a default export. */
-    NoDefaultExport = "NoDefaultExport",
-    /** JavaScript exports property not found in declaration exports. */
-    JsPropertyNotInDts = "JsPropertyNotInDts",
-    /** Declaration exports property not found in JavaScript exports. */
-    DtsPropertyNotInJs = "DtsPropertyNotInJs",
-    /** JavaScript module has signatures, but declaration module does not. */
-    JsSignatureNotInDts = "JsSignatureNotInDts",
-    /** Declaration module has signatures, but JavaScript module does not. */
-    DtsSignatureNotInJs = "DtsSignatureNotInJs",
 }
 
 interface NpmError extends CriticError {

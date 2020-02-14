@@ -10,7 +10,7 @@
     "outDir": "dist",
     "declaration": true,
     "esModuleInterop": true,
-		"noImplicitReturns": true,
+    "noImplicitReturns": true,
   },
   "exclude": [
     "dist/*",
