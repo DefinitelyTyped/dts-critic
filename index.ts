@@ -58,7 +58,12 @@ export type ExportErrorKind = ExportError["kind"];
 
 const defaultOpts: CheckOptions = { mode: Mode.NameOnly };
 
-export function dtsCritic(dtsPath: string, sourcePath?: string, options: CheckOptions = defaultOpts, debug = false): CriticError[] {
+export function dtsCritic(
+    dtsPath: string,
+    sourcePath?: string,
+    options: CheckOptions = defaultOpts,
+    debug = false,
+    dtsProgram?: ts.Program): CriticError[] {
     if (!commandExistsSync("tar")) {
         throw new Error("You need to have tar installed to run dts-critic, you can get it from https://www.gnu.org/software/tar");
     }
@@ -81,7 +86,7 @@ export function dtsCritic(dtsPath: string, sourcePath?: string, options: CheckOp
 
         if (sourcePath) {
             if (options.mode === Mode.Code) {
-                errors.push(...checkSource(name, dtsPath, sourcePath, options.errors, debug));
+                errors.push(...checkSource(name, dtsPath, sourcePath, options.errors, debug, dtsProgram));
             }
         }
         else if (!module.parent) {
@@ -98,7 +103,13 @@ If you want to check the declaration against the JavaScript source code, you mus
         }
 
         if (options.mode === Mode.Code) {
-            return checkSource(name, dtsPath, getNpmSourcePath(sourcePath, name, npmVersion), options.errors, debug);
+            return checkSource(
+                name,
+                dtsPath,
+                getNpmSourcePath(sourcePath, name, npmVersion),
+                options.errors,
+                debug,
+                dtsProgram);
         }
 
         return [];
@@ -344,8 +355,10 @@ export function checkSource(
     dtsPath: string,
     srcPath: string,
     enabledErrors: Map<ExportErrorKind, boolean>,
-    debug: boolean): ExportError[] {
-    const diagnostics = checkExports(name, dtsPath, srcPath);
+    debug: boolean,
+    dtsProgram?: ts.Program): ExportError[] {
+    dtsProgram = dtsProgram || createDtsProgram(dtsPath);
+    const diagnostics = checkExports(name, dtsPath, srcPath, dtsProgram);
     if (debug) {
         console.log(formatDebug(name, diagnostics));
     }
@@ -416,7 +429,7 @@ const exportEqualsLink = "https://www.typescriptlang.org/docs/handbook/modules.h
 /**
  * Checks exports of a declaration file against its JavaScript source.
  */
-function checkExports(name: string, dtsPath: string, sourcePath: string): ExportsDiagnostics {
+function checkExports(name: string, dtsPath: string, sourcePath: string, dtsProgram: ts.Program): ExportsDiagnostics {
     const tscOpts = {
         allowJs: true,
     };
@@ -431,7 +444,7 @@ function checkExports(name: string, dtsPath: string, sourcePath: string): Export
     const errors: ExportError[] = [];
     const sourceDiagnostics = inspectJs(jsFileNode, jsChecker, name);
 
-    const dtsDiagnostics = inspectDts(dtsPath, name);
+    const dtsDiagnostics = inspectDts(dtsPath, name, dtsProgram);
 
     if (isSuccess(sourceDiagnostics.exportEquals)
         && sourceDiagnostics.exportEquals.result.judgement === ExportEqualsJudgement.Required
@@ -588,9 +601,8 @@ function hasSignatures(type: ts.Type): boolean {
     return type.getCallSignatures().length > 0 || type.getConstructSignatures().length > 0;
 }
 
-function inspectDts(dtsPath: string, name: string): DtsExportDiagnostics {
+function inspectDts(dtsPath: string, name: string, program: ts.Program): DtsExportDiagnostics {
     dtsPath = path.resolve(dtsPath);
-    const program = createDtProgram(dtsPath);
     const sourceFile = program.getSourceFile(path.resolve(dtsPath));
     if (!sourceFile) {
         throw new Error(`TS compiler could not find source file '${dtsPath}'.`);
@@ -604,7 +616,7 @@ function inspectDts(dtsPath: string, name: string): DtsExportDiagnostics {
     return { exportKind: exportKindResult, exportType, defaultExport };
 }
 
-function createDtProgram(dtsPath: string): ts.Program {
+function createDtsProgram(dtsPath: string): ts.Program {
     const dtsDir = path.dirname(dtsPath);
     const configPath = path.join(dtsDir, "tsconfig.json");
     const { config } = ts.readConfigFile(configPath, p => fs.readFileSync(p, { encoding: "utf8" }));
