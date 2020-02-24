@@ -51,14 +51,18 @@ export interface NameOnlyOptions {
 }
 export interface CodeOptions {
     mode: Mode.Code,
-    errors: Map<ExportErrorKind, boolean>,
+    disabledErrors: Set<ExportErrorKind>,
 }
 
 export type ExportErrorKind = ExportError["kind"];
 
 const defaultOpts: CheckOptions = { mode: Mode.NameOnly };
 
-export function dtsCritic(dtsPath: string, sourcePath?: string, options: CheckOptions = defaultOpts, debug = false): CriticError[] {
+export function dtsCritic(
+    dtsPath: string,
+    sourcePath?: string,
+    options: CheckOptions = defaultOpts,
+    debug = false): CriticError[] {
     if (!commandExistsSync("tar")) {
         throw new Error("You need to have tar installed to run dts-critic, you can get it from https://www.gnu.org/software/tar");
     }
@@ -81,7 +85,7 @@ export function dtsCritic(dtsPath: string, sourcePath?: string, options: CheckOp
 
         if (sourcePath) {
             if (options.mode === Mode.Code) {
-                errors.push(...checkSource(name, dtsPath, sourcePath, options.errors, debug));
+                errors.push(...checkSource(name, dtsPath, sourcePath, options.disabledErrors, debug));
             }
         }
         else if (!module.parent) {
@@ -98,7 +102,12 @@ If you want to check the declaration against the JavaScript source code, you mus
         }
 
         if (options.mode === Mode.Code) {
-            return checkSource(name, dtsPath, getNpmSourcePath(sourcePath, name, npmVersion), options.errors, debug);
+            return checkSource(
+                name,
+                dtsPath,
+                getNpmSourcePath(sourcePath, name, npmVersion),
+                options.disabledErrors,
+                debug);
         }
 
         return [];
@@ -118,11 +127,10 @@ function isNonNpm(header: headerParser.Header | undefined): boolean {
     return !!header && header.nonNpm;
 }
 
-export const defaultErrors: ExportErrorKind[] = [ErrorKind.NeedsExportEquals, ErrorKind.NoDefaultExport];
-
 function main() {
     const argv = yargs.
-        usage("$0 --dts path-to-d.ts [--js path-to-source] [--mode mode] [--debug]\n\nIf source-folder is not provided, I will look for a matching package on npm.").
+        usage(`$0 --dts path-to-d.ts [--js path-to-source] [--mode mode] [--disabledErrors error1 error2] [--debug]
+If source-folder is not provided, I will look for a matching package on npm.`).
         option("dts", {
             describe: "Path of declaration file to be critiqued.",
             type: "string",
@@ -138,6 +146,21 @@ function main() {
             default: Mode.NameOnly,
             choices: [Mode.NameOnly, Mode.Code],
         }).
+        option("disabledErrors", {
+            describe: "Disable checking for specific code errors.",
+            type: "array",
+            string: true,
+            default: [],
+            coerce: (errors: string[]) => {
+                return errors.map(err => {
+                    const errorKind = parseExportErrorKind(err);
+                    if (errorKind === undefined) {
+                        throw new Error(`Could not find error called ${err}.`);
+                    }
+                    return errorKind;
+                });
+            },
+        }).
         option("debug", {
             describe: "Turn debug logging on.",
             type: "boolean",
@@ -152,7 +175,8 @@ function main() {
             opts = { mode: argv.mode };
             break;
         case Mode.Code:
-            opts = { mode: argv.mode, errors: new Map() };
+            opts = { mode: argv.mode, disabledErrors: new Set<ExportErrorKind>(argv.disabledErrors) };
+            break;
     }
     const errors = dtsCritic(argv.dts, argv.js, opts, argv.debug);
     if (errors.length === 0) {
@@ -343,14 +367,14 @@ export function checkSource(
     name: string,
     dtsPath: string,
     srcPath: string,
-    enabledErrors: Map<ExportErrorKind, boolean>,
+    disabledErrors: Set<ExportErrorKind>,
     debug: boolean): ExportError[] {
     const diagnostics = checkExports(name, dtsPath, srcPath);
     if (debug) {
         console.log(formatDebug(name, diagnostics));
     }
 
-    return diagnostics.errors.filter(err => enabledErrors.get(err.kind) ?? defaultErrors.includes(err.kind));
+    return diagnostics.errors.filter(err => !disabledErrors.has(err.kind));
 }
 
 function formatDebug(name: string, diagnostics: ExportsDiagnostics): string {

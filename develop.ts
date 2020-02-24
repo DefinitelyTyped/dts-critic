@@ -126,7 +126,7 @@ function getNonNpm(args: { dtPath: string }): void {
 interface CommonArgs {
     dtPath: string,
     mode: string,
-    enableError: string[] | undefined,
+    disabledErrors: string[] | undefined,
     debug: boolean,
     json: boolean,
 }
@@ -153,9 +153,9 @@ function checkPackage(args: { package: string } & CommonArgs): void {
     printResults([doCheck(args)], args.json);
 }
 
-function doCheck(args: { package: string, dtPath: string, mode: string, enableError: string[] | undefined, debug: boolean }): Result {
+function doCheck(args: { package: string, dtPath: string, mode: string, disabledErrors: string[] | undefined, debug: boolean }): Result {
     const dtPackage = args.package;
-    const opts = getOptions(args.mode, args.enableError || []);
+    const opts = getOptions(args.mode, args.disabledErrors);
     try {
         const dtsPath = path.join(getDtTypesPath(args.dtPath), dtPackage, "index.d.ts");
         const errors = dtsCritic(dtsPath, /* sourcePath */ undefined, opts, args.debug);
@@ -166,7 +166,7 @@ function doCheck(args: { package: string, dtPath: string, mode: string, enableEr
     }
 }
 
-function getOptions(modeArg: string, enabledErrors: string[]): CheckOptions {
+function getOptions(modeArg: string, disabledErrors: string[] | undefined): CheckOptions {
     const mode = parseMode(modeArg);
     if (!mode) {
         throw new Error(`Could not find mode named '${modeArg}'.`);
@@ -175,12 +175,11 @@ function getOptions(modeArg: string, enabledErrors: string[]): CheckOptions {
         case Mode.NameOnly:
             return { mode };
         case Mode.Code:
-            const errors = getEnabledErrors(enabledErrors);
-            return { mode, errors };
+            return { mode, disabledErrors: getDisabledErrors(disabledErrors || []) };
     }
 }
 
-function getEnabledErrors(errorNames: string[]): Map<ExportErrorKind, boolean> {
+function getDisabledErrors(errorNames: string[]): Set<ExportErrorKind> {
     const errors: ExportErrorKind[] = [];
     for (const name of errorNames) {
         const error = parseExportErrorKind(name);
@@ -189,13 +188,13 @@ function getEnabledErrors(errorNames: string[]): Map<ExportErrorKind, boolean> {
         }
         errors.push(error);
     }
-    return new Map(errors.map(err => [err, true]));
+    return new Set(errors);
 }
 
 function checkFile(args: { jsFile: string, dtsFile: string, debug: boolean }): void {
     console.log(`\tChecking JS file ${args.jsFile} and declaration file ${args.dtsFile}`);
     try {
-        const errors = checkSource(findDtsName(args.dtsFile), args.dtsFile, args.jsFile, new Map(), args.debug);
+        const errors = checkSource(findDtsName(args.dtsFile), args.dtsFile, args.jsFile, new Set(), args.debug);
         console.log(formatErrors(errors));
     }
     catch (e) {
@@ -261,10 +260,10 @@ function main() {
                 choices: [Mode.NameOnly, Mode.Code],
                 describe: "Mode that defines which group of checks will be made.",
             },
-            enableError: {
+            disabledErrors: {
                 type: "array",
                 string: true,
-                describe: "Enable checking for a specific export error."
+                describe: "Disable checking for a specific export error.",
             },
             debug: {
                 type: "boolean",
@@ -295,10 +294,10 @@ function main() {
                 choices: [Mode.NameOnly, Mode.Code],
                 describe: "Mode that defines which group of checks will be made.",
             },
-            enableError: {
+            disabledErrors: {
                 type: "array",
                 string: true,
-                describe: "Enable checking for a specific export error."
+                describe: "Disable checking for a specific export error."
             },
             debug: {
                 type: "boolean",
@@ -329,10 +328,10 @@ function main() {
                 choices: [Mode.NameOnly, Mode.Code],
                 describe: "Mode that defines which group of checks will be made.",
             },
-            enableError: {
+            disabledErrors: {
                 type: "array",
                 string: true,
-                describe: "Enable checking for a specific export error."
+                describe: "Disable checking for a specific export error."
             },
             debug: {
                 type: "boolean",
@@ -363,10 +362,10 @@ function main() {
                 choices: [Mode.NameOnly, Mode.Code],
                 describe: "Mode that defines which group of checks will be made.",
             },
-            enableError: {
+            disabledErrors: {
                 type: "array",
                 string: true,
-                describe: "Enable checking for a specific export error."
+                describe: "Disable checking for a specific export error."
             },
             debug: {
                 type: "boolean",
