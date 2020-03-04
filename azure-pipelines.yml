@@ -18,8 +18,8 @@ jobs:
 
   - script: 'rm -r node_modules/dts-critic && ln -s "$(pwd)" node_modules/dts-critic'
     displayName: 'ln -s "$(pwd)" node_modules/dts_critic'
-  
-  - script: 'node node_modules/typescript/lib/tsc.js && node node_modules/dtslint-runner/bin/index.js --clone --onlyTestTsNext'
+
+  - script: 'node node_modules/typescript/lib/tsc.js --project node_modules/dtslint-runner && node node_modules/dtslint-runner/bin/index.js --clone --onlyTestTsNext'
     displayName: 'node node_modules/dtslint-runner/bin/index.js --clone --onlyTestTsNext'
 
 pr:
