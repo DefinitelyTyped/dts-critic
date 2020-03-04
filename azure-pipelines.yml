@@ -3,7 +3,7 @@
 # Add steps that analyze code, save build artifacts, deploy, and more:
 # https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
 jobs:
-- job: testDtsCriticForDt
+- job: testDtsCriticWithDt
   pool:
     vmImage: 'ubuntu-latest'
     demands: npm
@@ -16,8 +16,11 @@ jobs:
     inputs:
       verbose: false
 
-  - script: ''
-
+  - script: 'rm -r node_modules/dts-critic && ln -s "$(pwd)" node_modules/dts-critic'
+    displayName: 'ln -s "$(pwd)" node_modules/dts_critic'
+  
+  - script: 'node node_modules/typescript/lib/tsc.js && node node_modules/dtslint-runner/bin/index.js --clone --onlyTestTsNext'
+    displayName: 'node node_modules/dtslint-runner/bin/index.js --clone --onlyTestTsNext'
 
 trigger:
 - master
