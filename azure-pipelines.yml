@@ -16,6 +16,9 @@ jobs:
     inputs:
       verbose: false
 
+  - script: 'npm run build'
+    displayName: 'Build dts-critic'
+
   - script: 'rm -r node_modules/dts-critic && ln -s "$(pwd)" node_modules/dts-critic'
     displayName: 'Replace dts-critic dependency'
 
