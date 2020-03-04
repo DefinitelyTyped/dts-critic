@@ -16,7 +16,7 @@ jobs:
     inputs:
       verbose: false
 
-  - script: 'rm -r node_modules/dts-critic && ln -s "$(pwd)" node_modules/dts-critic'
+  - script: 'ls node_modules && rm -r node_modules/dts-critic && ln -s "$(pwd)" node_modules/dts-critic'
     displayName: 'ln -s "$(pwd)" node_modules/dts_critic'
 
   - script: 'node node_modules/typescript/lib/tsc.js --project node_modules/dtslint-runner && node node_modules/dtslint-runner/bin/index.js --clone --onlyTestTsNext'
