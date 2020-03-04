@@ -1,0 +1,29 @@
+# Node.js
+# Build a general Node.js project with npm.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
+jobs:
+- job: testDtsCriticWithDt
+  pool:
+    vmImage: 'ubuntu-latest'
+    demands: npm
+
+  timeoutInMinutes: 360
+
+  steps:
+  - task: Npm@1
+    displayName: 'npm install'
+    inputs:
+      verbose: false
+
+  - script: 'npm run build'
+    displayName: 'Build dts-critic'
+
+  - script: 'rm -r node_modules/dts-critic && ln -s "$(pwd)" node_modules/dts-critic'
+    displayName: 'Replace dts-critic dependency'
+
+  - script: 'node node_modules/typescript/lib/tsc.js --project node_modules/dtslint-runner && node node_modules/dtslint-runner/bin/index.js --clone --onlyTestTsNext'
+    displayName: 'Run dtslint-runner'
+
+pr:
+- master
