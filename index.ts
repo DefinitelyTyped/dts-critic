@@ -811,19 +811,6 @@ function isExportEquals(node: ts.Node): boolean {
     return ts.isExportAssignment(node) && !!node.isExportEquals;
 }
 
-function isExportConstruct(node: ts.Node): boolean {
-    return ts.isExportAssignment(node)
-        || ts.isExportDeclaration(node)
-        || hasExportModifier(node);
-}
-
-function hasExportModifier(node: ts.Node): boolean {
-    if (node.modifiers) {
-        return node.modifiers.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword);
-    }
-    return false;
-}
-
 function matches(srcFile: ts.SourceFile, predicate: (n: ts.Node) => boolean): boolean {
     function matchesNode(node: ts.Node): boolean {
         if (predicate(node)) return true;
