@@ -641,11 +641,6 @@ function getDtsExportKind(sourceFile: ts.SourceFile): InferenceResult<DtsExportK
         return inferenceSuccess(DtsExportKind.ExportEquals);
     }
     return inferenceSuccess(DtsExportKind.ES6Like);
-    // if (matches(sourceFile, isExportConstruct)) {
-    //     return inferenceSuccess(DtsExportKind.ES6Like);
-    // }
-    // // try get declare module, return eslike if so
-    // return inferenceError("Could not infer export kind of declaration file.");
 }
 
 const exportEqualsSymbolName = "export=";
