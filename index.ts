@@ -7,6 +7,7 @@ import semver = require("semver");
 import rimraf = require("rimraf");
 import { sync as commandExistsSync } from "command-exists";
 import ts from "typescript";
+import * as tmp from "tmp";
 
 export enum ErrorKind {
     /** Declaration is marked as npm in header and has no matching npm package. */
@@ -105,7 +106,8 @@ If you want to check the declaration against the JavaScript source code, you mus
                 sourceEntry = sourcePath;
             }
             else {
-                packagePath = downloadNpmPackage(name, npmVersion, sourceDir)
+                const tempDirName = tmp.dirSync({ unsafeCleanup: true }).name
+                packagePath = downloadNpmPackage(name, npmVersion, tempDirName)
                 sourceEntry = require.resolve(path.resolve(packagePath));
             }
             const errors = checkSource(name, dtsPath, sourceEntry, options.errors, debug);
