@@ -1,12 +1,14 @@
 import yargs = require("yargs");
 import headerParser = require("@definitelytyped/header-parser");
 import fs = require("fs");
+import os = require("os")
 import cp = require("child_process");
 import path = require("path");
 import semver = require("semver");
 import rimraf = require("rimraf");
 import { sync as commandExistsSync } from "command-exists";
 import ts from "typescript";
+import * as tmp from "tmp";
 
 export enum ErrorKind {
     /** Declaration is marked as npm in header and has no matching npm package. */
@@ -105,7 +107,8 @@ If you want to check the declaration against the JavaScript source code, you mus
                 sourceEntry = sourcePath;
             }
             else {
-                packagePath = downloadNpmPackage(name, npmVersion, sourceDir)
+                const tempDirName = tmp.dirSync({ unsafeCleanup: true }).name
+                packagePath = downloadNpmPackage(name, npmVersion, tempDirName)
                 sourceEntry = require.resolve(path.resolve(packagePath));
             }
             const errors = checkSource(name, dtsPath, sourceEntry, options.errors, debug);
@@ -318,7 +321,10 @@ function downloadNpmPackage(name: string, version: string, outDir: string): stri
     const tarballName: string = npmPackOut.filename;
     const outPath = path.join(outDir, name);
     initDir(outPath);
-    cp.execFileSync("tar", ["-xz", "-f", tarballName, "-C", outPath, "--warning=none"], cpOpts);
+    const args = os.platform() === "darwin"
+      ? ["-xz", "-f", tarballName, "-C", outPath]
+      : ["-xz", "-f", tarballName, "-C", outPath, "--warning=none"];
+    cp.execFileSync("tar", args, cpOpts);
     fs.unlinkSync(tarballName);
     return path.join(outPath, getPackageDir(outPath));
 }
@@ -703,7 +709,7 @@ function getDtsDefaultExport(sourceFile: ts.SourceFile, moduleType: InferenceRes
     return undefined;
 }
 
-const ignoredProperties = ["__esModule", "prototype", "default"];
+const ignoredProperties = ["__esModule", "prototype", "default", "F", "G", "S", "P", "B", "W", "U", "R"];
 
 function ignoreProperty(property: ts.Symbol): boolean {
     const name = property.getName();
