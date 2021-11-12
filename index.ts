@@ -320,7 +320,7 @@ function downloadNpmPackage(name: string, version: string, outDir: string): stri
     let tarballName = npmPack.endsWith(".tgz") ? npmPack : JSON.parse(npmPack)[0].filename as string;
     
     // Npm does not report the correct filename for scoped packages. See https://github.com/npm/cli/issues/3405.
-    if ( ! fs.existsSync( tarballName ) ) {
+    if (!fs.existsSync(tarballName)) {
         tarballName = tarballName.replace(/^@/, '').replace(/\//, '-');
     }
 
