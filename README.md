@@ -1,4 +1,9 @@
-# dts-critic
+This repo has moved: dts-critic is now part of DefinitelyTyped-tools
+
+It is not intended to be used on its own, but as part of the `@definitelytyped` set of packages.
+The source code has moved to https://github.com/microsoft/DefinitelyTyped-tools
+The new package name is `@definitelytyped/dts-critic`.
+If there is future demand for standalone usage, this repo should wrap `@definitelytyped/dts-critic` in a command-line interface.
 
 Checks a new dts against the Javascript sources and tells you what
 problems it has.
