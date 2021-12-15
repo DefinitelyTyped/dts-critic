@@ -206,6 +206,7 @@ export function getNpmInfo(name: string): NpmInfo {
     }
     return {
         isNpm: true,
+        deprecated: info.deprecated,
         versions: info.versions as string[],
         tags: info["dist-tags"] as { [tag: string]: string | undefined }
     };
@@ -215,7 +216,7 @@ export function getNpmInfo(name: string): NpmInfo {
  * Checks DefinitelyTyped non-npm package.
  */
 function checkNonNpm(name: string, npmInfo: NpmInfo): NonNpmError | undefined {
-    if (npmInfo.isNpm && !isExistingSquatter(name)) {
+    if (npmInfo.isNpm && !npmInfo.deprecated && !isExistingSquatter(name)) {
         return {
             kind: ErrorKind.NonNpmHasMatchingPackage,
             message: `The non-npm package '${name}' conflicts with the existing npm package '${dtToNpmName(name)}'.
@@ -233,7 +234,7 @@ Try adding -browser to the end of the name to get
  * If all checks are successful, returns the npm version that matches the header.
  */
 function checkNpm(name: string, npmInfo: NpmInfo, header: headerParser.Header | undefined): NpmError | string {
-    if (!npmInfo.isNpm) {
+    if (!npmInfo.isNpm || npmInfo.deprecated) {
         return {
             kind: ErrorKind.NoMatchingNpmPackage,
             message: `Declaration file must have a matching npm package.
@@ -976,6 +977,7 @@ interface NonNpm {
 
 interface Npm {
     isNpm: true,
+    deprecated?: string,
     versions: string[],
     tags: { [tag: string]: string | undefined },
 }
